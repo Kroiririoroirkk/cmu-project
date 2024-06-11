@@ -96,9 +96,10 @@ def plot_hm_process(title, ts, xs, ys, xhats=None):
     except AssertionError:
         raise ValueError('Argument not of the correct shape')
 
-    fig, axs = plt.subplots(1, 3, sharey=True)
+    fig, axs = plt.subplots(1, n, sharey=True, squeeze=False)
+    axs = np.reshape(axs, (n,))
     fig.set_size_inches(12, 4.5)
-    for i in range(3):
+    for i in range(n):
         axs[i].plot(ts, xs[:,i], '-', color='navy', label='Latent')
         axs[i].plot(ts, ys[:,i], '.', color='salmon', label='Observed')
         if xhats is not None:

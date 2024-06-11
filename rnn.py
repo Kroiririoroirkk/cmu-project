@@ -41,13 +41,16 @@ class NeuralNet:
     backward(ys, xs)
         Calculate the loss and gradient from one labeled example.
     train_epoch(eta, num_trials, rng, n, m, A, x0,
-            Sigma_process, O, Sigma_obs, num_steps, print_loss)
+            Sigma_process, O, Sigma_obs, num_steps, print_loss,
+            progress_bar)
         Train the network on simulated data.
     train(etas, num_trials_per, rng, n, m, A, x0,
-            Sigma_process, O, Sigma_obs, num_steps)
+            Sigma_process, O, Sigma_obs, num_steps, print_loss,
+            progress_bar)
         Apply `train_epoch` several times.
     train_until_converge(eta, epsilon, num_trials_per, rng,
-            n, m, A, x0, Sigma_process, O, Sigma_obs)
+            n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps,
+            print_loss, progress_bar)
         Apply `train_epoch` until the losses differ by less than `epsilon`.
     """
 
@@ -254,7 +257,7 @@ class NeuralNet:
         L = calc_loss(xhats, xs)
         return L, dL_dM, dL_dK
 
-    def train_epoch(self, eta, num_trials, rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps, print_loss=True):
+    def train_epoch(self, eta, num_trials, rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps, print_loss=True, progress_bar=True):
         """Train the network on simulated data.
 
         Parameters
@@ -283,6 +286,8 @@ class NeuralNet:
             The number of steps to simulate for
         print_loss : bool
             Whether to print the mean loss (default True)
+        progress_bar : bool
+            Whether to print a progress bar (default True)
 
         Returns
         -------
@@ -304,7 +309,10 @@ class NeuralNet:
         dL_dMs = np.zeros((num_trials, self.num_neurons, self.num_neurons))
         dL_dKs = np.zeros((num_trials, self.num_neurons, self.obs_dim))
 
-        for i in tqdm.tqdm(range(num_trials)):
+        r = range(num_trials)
+        if progress_bar:
+            r = tqdm.tqdm(r)
+        for i in r:
             _, xs, ys = simulate_hm_process(rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps)
             L, dL_dM, dL_dK = self.backward(ys, xs)
             losses[i] = L
@@ -321,7 +329,7 @@ class NeuralNet:
 
         return losses, dL_dMs, dL_dKs
 
-    def train(self, etas, num_trials_per, rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps):
+    def train(self, etas, num_trials_per, rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps, print_loss=True, progress_bar=True):
         """Apply `train_epoch` several times.
 
         Parameters
@@ -348,6 +356,10 @@ class NeuralNet:
             The covariance of the observation noise
         num_steps : int
             The number of steps to simulate for
+        print_loss : bool
+            Whether to print the mean loss (default True)
+        progress_bar : bool
+            Whether to print a progress bar (default True)
 
         Returns
         -------
@@ -362,11 +374,11 @@ class NeuralNet:
         num_epochs = etas.shape[0]
         losses = np.zeros(num_epochs)
         for i in range(num_epochs):
-            Ls, _, _ = self.train_epoch(etas[i], num_trials_per, rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps)
+            Ls, _, _ = self.train_epoch(etas[i], num_trials_per, rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps, print_loss, progress_bar)
             losses[i] = np.mean(Ls)
         return losses
 
-    def train_until_converge(self, eta, epsilon, num_trials_per, rng, n, m, A, x0, Sigma_process, O, Sigma_obs):
+    def train_until_converge(self, eta, epsilon, num_trials_per, rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps, print_loss=True, progress_bar=True):
         """Apply `train_epoch` until the losses differ by less than `epsilon`.
 
         Parameters
@@ -393,6 +405,12 @@ class NeuralNet:
             The observation matrix
         Sigma_obs : np.ndarray, shape (m, m)
             The covariance of the observation noise
+        num_steps : int
+            The number of steps to simulate for
+        print_loss : bool
+            Whether to print the mean loss (default True)
+        progress_bar : bool
+            Whether to print a progress bar (default True)
 
         Returns
         -------
@@ -406,10 +424,10 @@ class NeuralNet:
         ValueError
             If a NumPy array argument is not of the correct shape.
         """
-        Ls, _, _ = self.train_epoch(eta, num_trials_per, rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps)
+        Ls, _, _ = self.train_epoch(eta, num_trials_per, rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps, print_loss, progress_bar)
         mean_losses = [np.mean(Ls)]
         while True:
-            Ls, _, _ = self.train_epoch(eta, num_trials_per, rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps)
+            Ls, _, _ = self.train_epoch(eta, num_trials_per, rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps, print_loss, progress_bar)
             mean_losses.append(np.mean(Ls))
             if abs(mean_losses[-1] - mean_losses[-2]) < epsilon:
                 break
