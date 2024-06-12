@@ -1,7 +1,7 @@
 import numpy as np
 import tqdm
 
-from hm_process import simulate_hm_process
+from hm_process import HMProcess
 from utils import calc_loss
 
 
@@ -35,21 +35,15 @@ class NeuralNet:
     -------
     forward(ys)
         Infer a latent signal from the observations given.
-    batch_test(self, batch_size, rng, n, m, A, x0,
-            Sigma_process, O, Sigma_obs, num_steps)
+    batch_test(self, batch_size, proc)
         Test the network on simulated data.
     backward(ys, xs)
         Calculate the loss and gradient from one labeled example.
-    train_epoch(eta, num_trials, rng, n, m, A, x0,
-            Sigma_process, O, Sigma_obs, num_steps, print_loss,
-            progress_bar)
+    train_epoch(eta, num_trials, proc, print_loss, progress_bar)
         Train the network on simulated data.
-    train(etas, num_trials_per, rng, n, m, A, x0,
-            Sigma_process, O, Sigma_obs, num_steps, print_loss,
-            progress_bar)
+    train(etas, num_trials_per, proc, print_loss, progress_bar)
         Apply `train_epoch` several times.
-    train_until_converge(eta, epsilon, num_trials_per, rng,
-            n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps,
+    train_until_converge(eta, epsilon, num_trials_per, proc,
             print_loss, progress_bar)
         Apply `train_epoch` until the losses differ by less than `epsilon`.
     """
@@ -111,39 +105,22 @@ class NeuralNet:
         rs = np.zeros((num_steps, self.num_neurons))
         xhats = np.zeros((num_steps, self.latent_dim))
 
-        r = self.r0
+        rs[-1] = self.r0
         for i in range(num_steps):
-            r = self.M @ r + self.K @ ys[i]
-            rs[i] = r
-            xhats[i] = self.W @ r
+            rs[i] = self.M @ rs[i-1] + self.K @ ys[i]
+            xhats[i] = self.W @ rs[i]
 
         return rs, xhats
 
-    def batch_test(self, batch_size, rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps):
+    def batch_test(self, batch_size, proc):
         """Test the network on simulated data.
 
         Parameters
         ----------
         batch_size : int
             The number of trials to simulate
-        rng : np.random.Generator
-            The RNG used for generating random Gaussian noise
-        n : int
-            The dimensionality of the latent state
-        m : int
-            The dimensionality of the observations
-        A : np.ndarray, shape (n, n)
-            The transition matrix for the latent state
-        x0 : np.ndarray, shape (n,)
-            The initial latent state
-        Sigma_process : np.ndarray, shape (n, n)
-            The covariance of the process noise
-        O : np.ndarray, shape (m, n)
-            The observation matrix
-        Sigma_obs : np.ndarray, shape (m, m)
-            The covariance of the observation noise
-        num_steps : int
-            The number of steps to simulate for
+        proc : HMProcess
+            The hidden Markov process to simulate
 
         Returns
         -------
@@ -157,7 +134,7 @@ class NeuralNet:
         """
         losses = np.zeros(batch_size)
         for i in range(batch_size):
-            _, xs, ys = simulate_hm_process(rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps)
+            _, xs, ys = proc.simulate()
             _, xhats = self.forward(ys)
             losses[i] = calc_loss(xhats, xs)
         return losses
@@ -257,7 +234,7 @@ class NeuralNet:
         L = calc_loss(xhats, xs)
         return L, dL_dM, dL_dK
 
-    def train_epoch(self, eta, num_trials, rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps, print_loss=True, progress_bar=True):
+    def train_epoch(self, eta, num_trials, proc, print_loss=True, progress_bar=True):
         """Train the network on simulated data.
 
         Parameters
@@ -266,24 +243,8 @@ class NeuralNet:
             The learning rate
         num_trials : int
             The number of trials to simulate
-        rng : np.random.Generator
-            The RNG used for generating random Gaussian noise
-        n : int
-            The dimensionality of the latent state
-        m : int
-            The dimensionality of the observations
-        A : np.ndarray, shape (n, n)
-            The transition matrix for the latent state
-        x0 : np.ndarray, shape (n,)
-            The initial latent state
-        Sigma_process : np.ndarray, shape (n, n)
-            The covariance of the process noise
-        O : np.ndarray, shape (m, n)
-            The observation matrix
-        Sigma_obs : np.ndarray, shape (m, m)
-            The covariance of the observation noise
-        num_steps : int
-            The number of steps to simulate for
+        proc : HMProcess
+            The hidden Markov process to simulate
         print_loss : bool
             Whether to print the mean loss (default True)
         progress_bar : bool
@@ -313,7 +274,7 @@ class NeuralNet:
         if progress_bar:
             r = tqdm.tqdm(r)
         for i in r:
-            _, xs, ys = simulate_hm_process(rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps)
+            _, xs, ys = proc.simulate()
             L, dL_dM, dL_dK = self.backward(ys, xs)
             losses[i] = L
             dL_dMs[i] = dL_dM
@@ -329,7 +290,7 @@ class NeuralNet:
 
         return losses, dL_dMs, dL_dKs
 
-    def train(self, etas, num_trials_per, rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps, print_loss=True, progress_bar=True):
+    def train(self, etas, num_trials_per, proc, print_loss=True, progress_bar=True):
         """Apply `train_epoch` several times.
 
         Parameters
@@ -338,24 +299,8 @@ class NeuralNet:
             The sequence of learning rates, one for each epoch
         num_trials_per : int
             The number of trials to simulate for each epoch
-        rng : np.random.Generator
-            The RNG used for generating random Gaussian noise
-        n : int
-            The dimensionality of the latent state
-        m : int
-            The dimensionality of the observations
-        A : np.ndarray, shape (n, n)
-            The transition matrix for the latent state
-        x0 : np.ndarray, shape (n,)
-            The initial latent state
-        Sigma_process : np.ndarray, shape (n, n)
-            The covariance of the process noise
-        O : np.ndarray, shape (m, n)
-            The observation matrix
-        Sigma_obs : np.ndarray, shape (m, m)
-            The covariance of the observation noise
-        num_steps : int
-            The number of steps to simulate for
+        proc : HMProcess
+            The hidden Markov process to simulate
         print_loss : bool
             Whether to print the mean loss (default True)
         progress_bar : bool
@@ -374,11 +319,11 @@ class NeuralNet:
         num_epochs = etas.shape[0]
         losses = np.zeros(num_epochs)
         for i in range(num_epochs):
-            Ls, _, _ = self.train_epoch(etas[i], num_trials_per, rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps, print_loss, progress_bar)
+            Ls, _, _ = self.train_epoch(etas[i], num_trials_per, proc, print_loss, progress_bar)
             losses[i] = np.mean(Ls)
         return losses
 
-    def train_until_converge(self, eta, epsilon, num_trials_per, rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps, print_loss=True, progress_bar=True):
+    def train_until_converge(self, eta, epsilon, num_trials_per, proc, print_loss=True, progress_bar=True):
         """Apply `train_epoch` until the losses differ by less than `epsilon`.
 
         Parameters
@@ -389,24 +334,8 @@ class NeuralNet:
             The threshold for determining if two losses are the same
         num_trials_per : int
             The number of trials to simulate for each epoch
-        rng : np.random.Generator
-            The RNG used for generating random Gaussian noise
-        n : int
-            The dimensionality of the latent state
-        m : int
-            The dimensionality of the observations
-        A : np.ndarray, shape (n, n)
-            The transition matrix for the latent state
-        x0 : np.ndarray, shape (n,)
-            The initial latent state
-        Sigma_process : np.ndarray, shape (n, n)
-            The covariance of the process noise
-        O : np.ndarray, shape (m, n)
-            The observation matrix
-        Sigma_obs : np.ndarray, shape (m, m)
-            The covariance of the observation noise
-        num_steps : int
-            The number of steps to simulate for
+        proc : HMProcess
+            The hidden Markov process to simulate
         print_loss : bool
             Whether to print the mean loss (default True)
         progress_bar : bool
@@ -424,10 +353,10 @@ class NeuralNet:
         ValueError
             If a NumPy array argument is not of the correct shape.
         """
-        Ls, _, _ = self.train_epoch(eta, num_trials_per, rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps, print_loss, progress_bar)
+        Ls, _, _ = self.train_epoch(eta, num_trials_per, proc, print_loss, progress_bar)
         mean_losses = [np.mean(Ls)]
         while True:
-            Ls, _, _ = self.train_epoch(eta, num_trials_per, rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps, print_loss, progress_bar)
+            Ls, _, _ = self.train_epoch(eta, num_trials_per, proc, print_loss, progress_bar)
             mean_losses.append(np.mean(Ls))
             if abs(mean_losses[-1] - mean_losses[-2]) < epsilon:
                 break

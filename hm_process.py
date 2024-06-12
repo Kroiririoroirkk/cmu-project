@@ -2,10 +2,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def simulate_hm_process(rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps):
-    """Simulate a hidden Markov process governed by linear dynamics.
-
-    Parameters
+class HMProcess:
+    """
+    A class for representing a linear hidden Markov process with Gaussian noise.
+    
+    Attributes
     ----------
     rng : np.random.Generator
         The RNG used for generating random Gaussian noise
@@ -26,38 +27,77 @@ def simulate_hm_process(rng, n, m, A, x0, Sigma_process, O, Sigma_obs, num_steps
     num_steps : int
         The number of steps to simulate for
 
-    Returns
+    Methods
     -------
-    ts : np.ndarray, shape (num_steps)
-        The time values of the process
-    xs : np.ndarray, shape (num_steps, n)
-        The simulated latent states
-    ys : np.ndarray, shape (num_steps, m)
-        The simulated observations
-
-    Raises
-    ------
-    ValueError
-        If a NumPy array argument is not of the correct shape.
+    simulate()
+        Simulate a hidden Markov process governed by linear dynamics.
     """
-    try:
-        assert A.shape == (n, n)
-        assert x0.shape == (n,)
-        assert Sigma_process.shape == (n, n)
-        assert O.shape == (m, n)
-        assert Sigma_obs.shape == (m, m)
-    except AssertionError:
-        raise ValueError('Argument not of the correct shape')
-    xs = np.zeros((num_steps, n))
-    ys = np.zeros((num_steps, m))
-    curr = x0
-    for i in range(num_steps):
-        xs[i] = curr
-        ys[i] = O@curr + rng.multivariate_normal(np.zeros(m), Sigma_obs)
-        curr = A@curr + rng.multivariate_normal(np.zeros(n), Sigma_process)
-    return np.arange(num_steps), xs, ys
+    
+    def __init__(self, rng, A, x0, Sigma_process, O, Sigma_obs, num_steps):
+        """
+        Parameters
+        ----------
+        rng : np.random.Generator
+            The RNG used for generating random Gaussian noise
+        A : np.ndarray, shape (n, n)
+            The transition matrix for the latent state
+        x0 : np.ndarray, shape (n,)
+            The initial latent state
+        Sigma_process : np.ndarray, shape (n, n)
+            The covariance of the process noise
+        O : np.ndarray, shape (m, n)
+            The observation matrix
+        Sigma_obs : np.ndarray, shape (m, m)
+            The covariance of the observation noise
+        num_steps : int
+            The number of steps to simulate for
 
+        Raises
+        ------
+        ValueError
+            If a NumPy array argument is not of the correct shape.
+        """
+        self.rng = rng
+        self.n = A.shape[0]
+        self.m = O.shape[0]
+        self.A = A
+        self.x0 = x0
+        self.Sigma_process = Sigma_process
+        self.O = O
+        self.Sigma_obs = Sigma_obs
+        self.num_steps = num_steps
 
+        try:
+            assert A.shape == (self.n, self.n)
+            assert x0.shape == (self.n,)
+            assert Sigma_process.shape == (self.n, self.n)
+            assert O.shape == (self.m, self.n)
+            assert Sigma_obs.shape == (self.m, self.m)
+        except AssertionError:
+            raise ValueError('Argument not of the correct shape')
+
+    def simulate(self):
+        """Simulate a hidden Markov process governed by linear dynamics.
+    
+        Returns
+        -------
+        ts : np.ndarray, shape (num_steps)
+            The time values of the process
+        xs : np.ndarray, shape (num_steps, n)
+            The simulated latent states
+        ys : np.ndarray, shape (num_steps, m)
+            The simulated observations
+        """
+        xs = np.zeros((self.num_steps, self.n))
+        ys = np.zeros((self.num_steps, self.m))
+        xs[0] = self.x0
+        for i in range(1, self.num_steps):
+            xs[i] = self.A@xs[i-1] + self.rng.multivariate_normal(np.zeros(self.n), self.Sigma_process)
+        for i in range(self.num_steps):
+            ys[i] = self.O@xs[i] + self.rng.multivariate_normal(np.zeros(self.m), self.Sigma_obs)
+        return np.arange(self.num_steps), xs, ys
+    
+    
 def plot_hm_process(title, ts, xs, ys, xhats=None):
     """Plot a hidden Markov process, optionally with an inferred latent state.
 
