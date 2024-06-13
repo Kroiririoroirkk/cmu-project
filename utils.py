@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def calc_loss(xhats, xs):
+def calc_loss(xhats, xs, start_from=0):
     """Calculate the loss between the two input arrays.
 
     More precisely, the loss is defined to be half of the
@@ -13,6 +13,8 @@ def calc_loss(xhats, xs):
         The first input array
     xs : np.ndarray, same shape as xhats
         The second input array
+    start_from : int
+        The time index to start calculating loss from (default 0)
 
     Returns
     -------
@@ -28,7 +30,7 @@ def calc_loss(xhats, xs):
         assert xhats.shape == xs.shape
     except AssertionError:
         raise ValueError('Shape mismatch')
-    return np.sum((xhats-xs)**2)/2
+    return np.sum((xhats[start_from:]-xs[start_from:])**2)/2
 
 
 def mk_rand_matrix(rng, n=3):

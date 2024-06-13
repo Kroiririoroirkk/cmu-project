@@ -37,13 +37,15 @@ class NeuralNet:
         Infer a latent signal from the observations given.
     batch_test(self, batch_size, proc)
         Test the network on simulated data.
-    backward(ys, xs)
+    backward(ys, xs, start_from)
         Calculate the loss and gradient from one labeled example.
-    train_epoch(eta, num_trials, proc, print_loss, progress_bar)
+    train_epoch(eta, num_trials, proc, start_from, print_loss,
+            progress_bar)
         Train the network on simulated data.
-    train(etas, num_trials_per, proc, print_loss, progress_bar)
+    train(etas, num_trials_per, proc, start_from, print_loss,
+            progress_bar)
         Apply `train_epoch` several times.
-    train_until_converge(eta, epsilon, num_trials_per, proc,
+    train_until_converge(eta, epsilon, num_trials_per, proc, start_from,
             print_loss, progress_bar)
         Apply `train_epoch` until the losses differ by less than `epsilon`.
     """
@@ -112,7 +114,7 @@ class NeuralNet:
 
         return rs, xhats
 
-    def batch_test(self, batch_size, proc):
+    def batch_test(self, batch_size, proc, start_from=0):
         """Test the network on simulated data.
 
         Parameters
@@ -121,6 +123,8 @@ class NeuralNet:
             The number of trials to simulate
         proc : HMProcess
             The hidden Markov process to simulate
+        start_from : int
+            The time index to start calculating loss from (default 0)
 
         Returns
         -------
@@ -136,10 +140,10 @@ class NeuralNet:
         for i in range(batch_size):
             _, xs, ys = proc.simulate()
             _, xhats = self.forward(ys)
-            losses[i] = calc_loss(xhats, xs)
+            losses[i] = calc_loss(xhats, xs, start_from)
         return losses
 
-    def backward(self, ys, xs):
+    def backward(self, ys, xs, start_from=0):
         """Calculate the loss and gradient from one labeled example.
 
         Parameters
@@ -148,6 +152,8 @@ class NeuralNet:
             The array of observations
         xs : np.ndarray, shape (num_steps, latent_dim)
             The true latent signal
+        start_from : int
+            The time index to start calculating loss from (default 0)
 
         Returns
         -------
@@ -187,13 +193,20 @@ class NeuralNet:
 
         # dL_dr[n,k] represents dL / dr^n_k where L = 1/2 sum_{im} (xhat^m_i - x^m_i)^2
         dL_dr = np.zeros((num_steps, self.num_neurons))
-        for n in range(num_steps):
+        for n in range(start_from, num_steps):
             for k in range(self.num_neurons):
                 dL_dr[n,k] = sum((self.W[i,k]*rs[n,k]-xs[n,i])*self.W[i,k] for i in range(self.latent_dim)) + sum(sum(sum(
                     (self.W[i,j]*rs[m,j]-xs[m,i])*self.W[i,j]*dr_dr[m,n,j,k]
                     for i in range(self.latent_dim))
                     for j in range(self.num_neurons))
                     for m in range(n+1,num_steps))
+        for n in range(start_from):
+            for k in range(self.num_neurons):
+                dL_dr[n,k] = sum(sum(sum(
+                    (self.W[i,j]*rs[m,j]-xs[m,i])*self.W[i,j]*dr_dr[m,n,j,k]
+                    for i in range(self.latent_dim))
+                    for j in range(self.num_neurons))
+                    for m in range(start_from,num_steps))
 
         kron_delta = np.eye(self.num_neurons)
 
@@ -234,7 +247,7 @@ class NeuralNet:
         L = calc_loss(xhats, xs)
         return L, dL_dM, dL_dK
 
-    def train_epoch(self, eta, num_trials, proc, print_loss=True, progress_bar=True):
+    def train_epoch(self, eta, num_trials, proc, start_from=0, print_loss=True, progress_bar=True):
         """Train the network on simulated data.
 
         Parameters
@@ -245,6 +258,8 @@ class NeuralNet:
             The number of trials to simulate
         proc : HMProcess
             The hidden Markov process to simulate
+        start_from : int
+            The time index to start calculating loss from (default 0)
         print_loss : bool
             Whether to print the mean loss (default True)
         progress_bar : bool
@@ -275,7 +290,7 @@ class NeuralNet:
             r = tqdm.tqdm(r)
         for i in r:
             _, xs, ys = proc.simulate()
-            L, dL_dM, dL_dK = self.backward(ys, xs)
+            L, dL_dM, dL_dK = self.backward(ys, xs, start_from)
             losses[i] = L
             dL_dMs[i] = dL_dM
             dL_dKs[i] = dL_dK
@@ -290,7 +305,7 @@ class NeuralNet:
 
         return losses, dL_dMs, dL_dKs
 
-    def train(self, etas, num_trials_per, proc, print_loss=True, progress_bar=True):
+    def train(self, etas, num_trials_per, proc, start_from=0, print_loss=True, progress_bar=True):
         """Apply `train_epoch` several times.
 
         Parameters
@@ -301,6 +316,8 @@ class NeuralNet:
             The number of trials to simulate for each epoch
         proc : HMProcess
             The hidden Markov process to simulate
+        start_from : int
+            The time index to start calculating loss from (default 0)
         print_loss : bool
             Whether to print the mean loss (default True)
         progress_bar : bool
@@ -319,11 +336,11 @@ class NeuralNet:
         num_epochs = etas.shape[0]
         losses = np.zeros(num_epochs)
         for i in range(num_epochs):
-            Ls, _, _ = self.train_epoch(etas[i], num_trials_per, proc, print_loss, progress_bar)
+            Ls, _, _ = self.train_epoch(etas[i], num_trials_per, proc, start_from, print_loss, progress_bar)
             losses[i] = np.mean(Ls)
         return losses
 
-    def train_until_converge(self, eta, epsilon, num_trials_per, proc, print_loss=True, progress_bar=True):
+    def train_until_converge(self, eta, epsilon, num_trials_per, proc, start_from=0, print_loss=True, progress_bar=True):
         """Apply `train_epoch` until the losses differ by less than `epsilon`.
 
         Parameters
@@ -336,6 +353,8 @@ class NeuralNet:
             The number of trials to simulate for each epoch
         proc : HMProcess
             The hidden Markov process to simulate
+        start_from : int
+            The time index to start calculating loss from (default 0)
         print_loss : bool
             Whether to print the mean loss (default True)
         progress_bar : bool
@@ -353,10 +372,10 @@ class NeuralNet:
         ValueError
             If a NumPy array argument is not of the correct shape.
         """
-        Ls, _, _ = self.train_epoch(eta, num_trials_per, proc, print_loss, progress_bar)
+        Ls, _, _ = self.train_epoch(eta, num_trials_per, proc, start_from, print_loss, progress_bar)
         mean_losses = [np.mean(Ls)]
         while True:
-            Ls, _, _ = self.train_epoch(eta, num_trials_per, proc, print_loss, progress_bar)
+            Ls, _, _ = self.train_epoch(eta, num_trials_per, proc, start_from, print_loss, progress_bar)
             mean_losses.append(np.mean(Ls))
             if abs(mean_losses[-1] - mean_losses[-2]) < epsilon:
                 break
