@@ -56,7 +56,7 @@ Drawing inspiration from a neural net, I would like to compute the optimal outpu
 
 #### Hidden Markov process
 
-I first simulated a 3-dimensional linear hidden Markov process with Gaussian process noise and observation noise. An example of such a process is shown below, with $A = \operatorname{diag}(0.98, 0.96, 0.85)$, an initial position of $(100,100,100)^T$, a process noise standard deviation of $10$, and an observation noise standard deviation of $25$.
+I first simulated a 3-dimensional linear hidden Markov process with Gaussian process noise and observation noise. An example of such a process is shown below, with $A = \mathop{\mathrm{diag}}(0.98, 0.96, 0.85)$, an initial position of $(100,100,100)^T$, a process noise standard deviation of $10$, and an observation noise standard deviation of $25$.
 
 ![Hidden Markov process](img/week1/hm_process.png)
 
