@@ -18,7 +18,7 @@ At each time $t$, we then make an observation $y_t \in \mathbb R^m$ which is det
 
 In other words, we have a hidden Markov process where both the state transitions and observations are linear, with Gaussian noise.
 
-The task we would like to accomplish is to take in a series of observations $y_0, \dots, y_T$ as an input and use them to calculate an output $\hat x_0, \dots, \hat x_T$, minimizing the squared error $\mathcal L = \sum_{t=0}^T \|x_t - \hat x_t\|_2^2$.
+The task we would like to accomplish is to take in a series of observations $y_0, \dots, y_T$ as an input and use them to calculate an output $\hat x_0, \dots, \hat x_T$, minimizing the error $\|x-\hat x\|_2$.
 
 ### <a name="theory"></a>Theory
 
