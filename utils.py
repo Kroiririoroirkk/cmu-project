@@ -33,7 +33,7 @@ def calc_loss(xhats, xs, start_from=0):
     return np.sum((xhats[start_from:]-xs[start_from:])**2)/2
 
 
-def mk_rand_matrix(rng, n=3):
+def mk_rand_matrix(rng, n):
     """Generate a Gaussian random square matrix.
 
     Parameters
@@ -41,7 +41,7 @@ def mk_rand_matrix(rng, n=3):
     rng : np.random.Generator
         The RNG to use
     n : int
-        The number of columns of the matrix (default 3)
+        The number of columns of the matrix
 
     Returns
     -------
@@ -51,18 +51,15 @@ def mk_rand_matrix(rng, n=3):
     return rng.multivariate_normal(np.zeros(n),np.eye(n),(n,))
 
 
-def mk_rand_matrix_envals(rng, n=3, envals=np.array([0.9, 0.88, 0.85])):
+def mk_rand_matrix_envals(rng, envals):
     """Generate a random square matrix with the given eigenvalues.
 
     Parameters
     ----------
     rng : np.random.Generator
         The RNG to use
-    n : int
-        The shape of the matrix (default 3)
     envals : np.ndarray, shape (n,)
-        The eigenvalues of the matrix (default
-        np.array([0.9, 0.88, 0.85]))
+        The eigenvalues of the matrix
 
     Returns
     -------
@@ -74,6 +71,8 @@ def mk_rand_matrix_envals(rng, n=3, envals=np.array([0.9, 0.88, 0.85])):
     ValueError
         If a NumPy array argument is not of the correct shape.
     """
+    n = envals.shape[0]
+    
     try:
         assert envals.shape == (n,)
     except AssertionError:

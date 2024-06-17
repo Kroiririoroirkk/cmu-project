@@ -127,3 +127,44 @@ class SteadyStateKalmanFilter:
         nn = NeuralNet(self.M_infty, self.K_infty, np.eye(self.process.n), self.process.x0)
         _, xhats = nn.forward(ys)
         return xhats
+
+    def check_convergence(self):
+        """Compare steady-state parameters to actual Kalman filter parameters.
+
+        See https://en.wikipedia.org/wiki/Kalman_filter#Asymptotic_form for
+        the equations governing the time evolution of the Kalman filter.
+        
+        Returns
+        -------
+        Sigma_infty_dist : np.ndarray, shape (num_steps,)
+            Frobenius distance between Sigma_i and Sigma_infty at each time step
+        K_infty_dist : np.ndarray, shape (num_steps,)
+            Frobenius distance between K_i and K_infty at each time step
+        M_infty_dist : np.ndarray, shape (num_steps,)
+            Frobenius distance between M_i and M_infty at each time step
+
+        Raises
+        ------
+        LinAlgError
+            If inversion of the innovation covariance matrix fails.
+        """
+        Sigmas = np.zeros((self.process.num_steps, self.process.n, self.process.n)) # Sigmas[i] = Sigma_{i|i}
+        Ks = np.zeros((self.process.num_steps, self.process.n, self.process.m)) # Ks[i] = K_i
+        Ms = np.zeros((self.process.num_steps, self.process.n, self.process.n)) # Ms[i] = M_i
+        Sigmas[-1] = np.zeros((self.process.n, self.process.n)) # Strictly speaking, not necessary since it's already initialized to zero
+        for i in range(self.process.num_steps):
+            Sigma_i_prior = self.process.A @ Sigmas[i-1] @ self.process.A.T + self.process.Sigma_process # Sigma_{i|i-1}
+            S_i = self.process.O @ Sigma_i_prior @ self.process.O.T + self.process.Sigma_obs # Innovation covariance
+            Ks[i] = Sigma_i_prior @ self.process.O.T @ np.linalg.inv(S_i)
+            Sigmas[i] = Sigma_i_prior - Ks[i] @ self.process.O @ Sigma_i_prior
+            Ms[i] = self.process.A - Ks[i] @ self.process.O @ self.process.A
+        
+        Sigma_infty_dist = np.zeros(self.process.num_steps)
+        K_infty_dist = np.zeros(self.process.num_steps)
+        M_infty_dist = np.zeros(self.process.num_steps)
+        for i in range(self.process.num_steps):
+            Sigma_infty_dist[i] = np.linalg.norm(Sigmas[i] - self.Sigma_infty, ord='fro')
+            K_infty_dist[i] = np.linalg.norm(Ks[i] - self.K_infty, ord='fro')
+            M_infty_dist[i] = np.linalg.norm(Ms[i] - self.M_infty, ord='fro')
+        
+        return Sigma_infty_dist, K_infty_dist, M_infty_dist

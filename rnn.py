@@ -39,15 +39,15 @@ class NeuralNet:
         Test the network on simulated data.
     backward(ys, xs, start_from)
         Calculate the loss and gradient from one labeled example.
-    train_epoch(eta, num_trials, proc, start_from, print_loss,
+    train_batch(eta, num_trials, proc, start_from, print_loss,
             progress_bar)
         Train the network on simulated data.
     train(etas, num_trials_per, proc, start_from, print_loss,
             progress_bar)
-        Apply `train_epoch` several times.
+        Apply `train_batch` several times.
     train_until_converge(eta, epsilon, num_trials_per, proc, start_from,
             print_loss, progress_bar)
-        Apply `train_epoch` until the losses differ by less than `epsilon`.
+        Apply `train_batch` until the losses differ by less than `epsilon`.
     """
 
     def __init__(self, M0, K0, W0, r0, mask=None):
@@ -247,7 +247,7 @@ class NeuralNet:
         L = calc_loss(xhats, xs)
         return L, dL_dM, dL_dK
 
-    def train_epoch(self, eta, num_trials, proc, start_from=0, print_loss=True, progress_bar=True):
+    def train_batch(self, eta, num_trials, proc, start_from=0, print_loss=True, progress_bar=True):
         """Train the network on simulated data.
 
         Parameters
@@ -306,14 +306,14 @@ class NeuralNet:
         return losses, dL_dMs, dL_dKs
 
     def train(self, etas, num_trials_per, proc, start_from=0, print_loss=True, progress_bar=True):
-        """Apply `train_epoch` several times.
+        """Apply `train_batch` several times.
 
         Parameters
         ----------
-        etas : np.ndarray, shape (num_epochs,)
-            The sequence of learning rates, one for each epoch
+        etas : np.ndarray, shape (num_batches,)
+            The sequence of learning rates, one for each batch
         num_trials_per : int
-            The number of trials to simulate for each epoch
+            The number of trials to simulate for each batch
         proc : HMProcess
             The hidden Markov process to simulate
         start_from : int
@@ -325,23 +325,23 @@ class NeuralNet:
 
         Returns
         -------
-        losses : np.ndarray, shape (num_epochs,)
-            The mean loss for each epoch
+        losses : np.ndarray, shape (num_batches,)
+            The mean loss for each batch
 
         Raises
         ------
         ValueError
             If a NumPy array argument is not of the correct shape.
         """
-        num_epochs = etas.shape[0]
-        losses = np.zeros(num_epochs)
-        for i in range(num_epochs):
-            Ls, _, _ = self.train_epoch(etas[i], num_trials_per, proc, start_from, print_loss, progress_bar)
+        num_batches = etas.shape[0]
+        losses = np.zeros(num_batches)
+        for i in range(num_batches):
+            Ls, _, _ = self.train_batch(etas[i], num_trials_per, proc, start_from, print_loss, progress_bar)
             losses[i] = np.mean(Ls)
         return losses
 
     def train_until_converge(self, eta, epsilon, num_trials_per, proc, start_from=0, print_loss=True, progress_bar=True):
-        """Apply `train_epoch` until the losses differ by less than `epsilon`.
+        """Apply `train_batch` until the losses differ by less than `epsilon`.
 
         Parameters
         ----------
@@ -350,7 +350,7 @@ class NeuralNet:
         epsilon : float
             The threshold for determining if two losses are the same
         num_trials_per : int
-            The number of trials to simulate for each epoch
+            The number of trials to simulate for each batch
         proc : HMProcess
             The hidden Markov process to simulate
         start_from : int
@@ -362,21 +362,34 @@ class NeuralNet:
 
         Returns
         -------
-        num_epochs : int
-            The number of epochs
-        losses : np.ndarray, shape (num_epochs,)
-            The mean loss for each epoch
+        num_batches : int
+            The number of batches
+        losses : np.ndarray, shape (num_batches,)
+            The mean loss for each batch
+        Ms : np.ndarray, shape (num_batches+1, num_neurons, num_neurons)
+            The values of M achieved during training
+        Ks : np.ndarray, shape (num_batches+1, num_neurons, obs_dim)
+            The values of K achieved during training
 
         Raises
         ------
         ValueError
             If a NumPy array argument is not of the correct shape.
         """
-        Ls, _, _ = self.train_epoch(eta, num_trials_per, proc, start_from, print_loss, progress_bar)
-        mean_losses = [np.mean(Ls)]
-        while True:
-            Ls, _, _ = self.train_epoch(eta, num_trials_per, proc, start_from, print_loss, progress_bar)
+        Ms = [np.copy(self.M)]
+        Ks = [np.copy(self.K)]
+        mean_losses = []
+        
+        def iter_loop():
+            Ls, _, _ = self.train_batch(eta, num_trials_per, proc, start_from, print_loss, progress_bar)
+            Ms.append(np.copy(self.M))
+            Ks.append(np.copy(self.K))
             mean_losses.append(np.mean(Ls))
+        
+        iter_loop() # This guarantees we have at least two entries before we check whether to break the loop
+        while True:
+            iter_loop()
             if abs(mean_losses[-1] - mean_losses[-2]) < epsilon:
                 break
-        return len(mean_losses), np.array(mean_losses)
+        
+        return len(mean_losses), np.array(mean_losses), np.array(Ms), np.array(Ks)
