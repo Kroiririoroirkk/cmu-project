@@ -1,16 +1,34 @@
-# CMU Summer 2024 uPNC Project
+# <a name="top"></a>CMU Summer 2024 uPNC Project
 
 Written by Eric Tao, last updated 2024-06-17
 
-## Introduction
+## Table of contents
+
+* [Introduction](#introduction)
+* [Setup](#setup)
+    * [Task](#task)
+    * [Theory](#theory)
+    * [Model](#model)
+* [Week 1 summary](#week-1-summary)
+    * [Exploration 1](#exploration-1)
+        * [Hidden Markov process](#hidden-markov-process)
+        * [Kalman filter](#kalman-filter)
+        * [Recurrent neural network](#recurrent-neural-network)
+    * [Exploration 2](#exploration-2)
+        * [One-dimensional loss landscape](#one-dimensional-loss-landscape)
+    * [Week 1 future directions](#week-1-future-directions)
+
+## <a name="introduction"></a>Introduction
 
 This is the repository I have made for the code I have written as part of the Summer 2024 uPNC (Undergraduate Program in Neural Computation) at CMU (Carnegie Mellon University). The aim of this project is to investigate the functional basis of why neurons are connected in the patterns that they are. For example, [previous work](https://bmcbiol.biomedcentral.com/articles/10.1186/1741-7007-2-25) by Reigl et al., 2004 has found that certain types of network motifs such as bi-directionally connected pairs of neurons and transitive triangles of neurons are overrepresented inside a *C. elegans* brain. How does the presence of these motifs in a neural network change its ability to perform various tasks? What tasks do networks with these motifs excel at? What tasks do networks with these motifs fail at? The answers to these questions would yield insight into the evolutionary goals of the brain and bridge the gap between network connectivity and functionality, analogous to Marr's implementational and computational levels.
 
 The main notebook file for my exploration is `LDS_exploration.ipynb`, which depends on the `.py` files in the parent directory. For posterity, I have also included some old unused code in the `old` folder which uses PyTorch. I have since decided to code the system from scratch for a better understanding of the internals and more flexibility.
 
-## Setup
+[Back to top](#top)
 
-### Task
+## <a name="setup"></a>Setup
+
+### <a name="task"></a>Task
 
 Suppose we have hidden variable states $x_0, x_1, x_2, \dots \in \mathbb R^n$ which evolve over time according to a linear dynamics rule $x_t = Ax_{t-1} + w_{t-1}$, where $A \in \mathbb R^{n\times n}$ is the matrix determining the dynamics and $w_t \sim \mathcal N(0^n, \Sigma_\text{process}^{n\times n})$ is IID process noise.
 
@@ -19,6 +37,8 @@ At each time $t$, we then make an observation $y_t \in \mathbb R^m$ which is det
 In other words, we have a hidden Markov process where both the state transitions and observations are linear, with Gaussian noise.
 
 The task we would like to accomplish is to take in a series of observations $y_0, \dots, y_T$ as an input and use them to calculate an output $\hat x_0, \dots, \hat x_T$, minimizing the error $\|x-\hat x\|_2$.
+
+[Back to top](#top)
 
 ### <a name="theory"></a>Theory
 
@@ -46,21 +66,27 @@ $$\Sigma_\infty = A(\Sigma_\infty - \Sigma_\infty(\Sigma_\infty + \Sigma_\text{o
 
 For more information, see [this tutorial](https://compneuro.neuromatch.io/tutorials/W3D2_HiddenDynamics/student/W3D2_Tutorial3.html) introducing the Kalman filter and [these lecture slides](https://www.cs.cmu.edu/~motionplanning/papers/sbp_papers/kalman/kleeman_understanding_kalman.pdf).
 
-### Model
+[Back to top](#top)
+
+### <a name="model"></a>Model
 
 Drawing inspiration from a neural net, I would like to compute the optimal output to the task using a set of $\ell$ neurons with internal states of $r = (r_1, \dots, r_\ell)$, whose dynamics are governed by the equation $r_t = Mr_{t-1} + Ky_t$ (here, $K$ is analogous to but not the same as the Kalman gain above), where $M \in \mathbb R^{\ell\times\ell}$ and $K \in \mathbb R^{\ell\times m}$. That is, the internal states of the neurons will update according to both the state of the network at the previous time step as well as the new information. Then, our prediction will be a linear function of the neural states: $\hat x_t = Wr_t$, where $W \in \mathbb R^{n\times\ell}$.
 
-## Week 1 summary
+[Back to top](#top)
 
-### Exploration 1
+## <a name="week-1-summary"></a>Week 1 summary
 
-#### Hidden Markov process
+### <a name="exploration-1"></a>Exploration 1
+
+#### <a name="hidden-markov-process"></a>Hidden Markov process
 
 I first simulated a 3-dimensional linear hidden Markov process with Gaussian process noise and observation noise. An example of such a process is shown below, with $A = \mathop{\mathrm{diag}}(0.98, 0.96, 0.85)$, an initial position of $(100,100,100)^T$, a process noise standard deviation of $10$, and an observation noise standard deviation of $25$.
 
 ![Hidden Markov process](img/week1/hm_process.png)
 
 The dark blue line represents the actual latent state while the orange dots represent the observations collected. One analogy that helps me conceptualize the task is to imagine a cat chasing a bird. The bird's position in 3-dimensional space is represented by the dark blue lines, with the first dimension representing its $x$ position, the second dimension representing its $y$ position, and the third dimension representing its $z$ position. The bird generally follows a linear dynamical equation, with its current position being a matrix $A$ multiplied by its previous position (in this case, that results in exponential decay in each of the dimensions), but it also wiggles around randomly, depending on the amount of process noise. As the bird flies around, the cat watches it and tracks its position, but its observations (the orange dots) are imperfect, and they always slightly differ from the actual position of the bird (the dark blue line). What is the cat's best strategy for using the orange dots to reconstruct the actual dark blue line and thereby accurately track the bird's position and catch it?
+
+[Back to top](#top)
 
 #### <a name="kalman-filter"></a>Kalman filter
 
@@ -83,6 +109,8 @@ Thus, convergence happens extremely quickly! A value such as $s=5$ should suffic
 ![Convergence of Kalman filter covariance](img/week1/kalman_convergence_covar.png)
 
 The plot shows that $\Sigma$ converges to a value which is extremely different from its steady-state value. This is puzzling because both $K$ and $M$ are calculated using $\Sigma$, so it is unclear why they would converge to the correct values if $\Sigma$ does not. Investigating this issue is one of my high-priority items for the next week.
+
+[Back to top](#top)
 
 #### <a name="recurrent-neural-network"></a>Recurrent neural network
 
@@ -112,9 +140,11 @@ As expected, the curve is decreasing and concave up. One could further improve t
 
 Even though the neural network does well, the loss of the Kalman filter is still approximately half of that of the neural network after training.
 
-### Exploration 2
+[Back to top](#top)
 
-#### One-dimensional loss landscape
+### <a name="exploration-2"></a>Exploration 2
+
+#### <a name="one-dimensional-loss-landscape"></a>One-dimensional loss landscape
 
 After coding all of the basic foundations of the task, I wanted to get a more detailed understanding of how changing $M$ and $K$ affects the loss function. To do this, I chose to examine a one-dimensional process rather than a three-dimensional process so that $M$ and $K$ would be scalars, and I would be able to plot the value of the loss function as a function of $M$ and $K$ using a simple heatmap. I also decreased the number of time steps from $T=100$ to $T=50$ and allowed $A$ to vary between five different values: $-0.95$, $-0.8$, $0$, $0.8$, $0.95$. I chose to calculate the loss starting from $s=5$. (A more principled approach might change $s$ and $T$ depending on the time constant of the process, determined by $-1/\ln A$. This might be a useful update for a later week.) The below plot shows the log-loss landscape (taking the logarithm here is useful because the loss can get very large very fast) for various values of $M$ and $K$. I also overlaid onto the plot the values of $M_{\mathrm{opt}}$ and $K_{\mathrm{opt}}$ (the steady-state Kalman filter parameters, shown in black), as well as the trajectories of two neural networks during gradient descent (as shown in red and orange, respectively):
 
@@ -128,7 +158,9 @@ For $A=0.8$ and $A=-0.8$, we see a mix between the two extremes, with a plateau 
 
 It is unclear to me how to extend this to higher-dimensional processes. One task worth pursuing here is to figure out how to find the optimal value of $K$ given some value $M$. This is because $M$ is really the variable of interest (how the neurons are connected together), and $K$ is merely a gain which changes the scale. By eliminating $K$ as a variable, it will then be easier to visualize what is going on for higher-dimensional values of $M$.
 
-### Future directions
+[Back to top](#top)
+
+### <a name="week-1-future-directions"></a>Week 1 future directions
 
 First, there are a few small tasks which need to be completed in order to follow up on the work from week 1.
 
@@ -143,3 +175,5 @@ Looking towards the future, I could then compose the small networks together to 
 Ultimately, I would like to tie this project as best as possible towards realistic cognitive tasks. A neural network with a connectivity matrix with some structure A will most likely be best at inferring from a process whose dynamics are also governed by a matrix with that same structure A. Will it also perform well on processes whose dynamics are governed by a matrix with some other structure B, possibly due to the presence of nonlinearities? How do structure A and structure B correspond to behavioral goals which may be naturally selected for?
 
 It is also important to keep in mind that the network size matters. Many studies take the limit as $n\to\infty$, but there may be effects which are special to networks of medium size, say $n=300$. Are there emergent effects which appear only at certain scales? I will eventually want to start considering nonlinearities in the dynamics, and they may have a large impact on this.
+
+[Back to top](#top)
