@@ -12,7 +12,8 @@ def riccati_error(Sigma_infty, proc):
     """Find the amount that Sigma_infty deviates from the Riccati equation.
 
     Given a candidate value for Sigma_infty, calculate the squared
-    Frobenius distance between the two sides of the Riccati equation.
+    Frobenius distance between the two sides of the Riccati equation,
+    divided by n**2 to prevent the values from blowing up.
 
     Parameters
     ----------
@@ -39,7 +40,7 @@ def riccati_error(Sigma_infty, proc):
     return np.linalg.norm(Sigma_infty -
         (proc.A @ (Sigma_infty - Sigma_infty @ proc.O.T @ np.linalg.inv(
             proc.O @ Sigma_infty @ proc.O.T + proc.Sigma_obs) @ proc.O @ Sigma_infty) @ proc.A.T
-        + proc.Sigma_process), ord='fro')**2
+        + proc.Sigma_process), ord='fro')**2 / (proc.n**2)
 
 
 def find_steady_state_kalman_parameters(proc):
