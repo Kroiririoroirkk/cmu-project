@@ -43,13 +43,15 @@ def riccati_error(Sigma_infty, proc):
         + proc.Sigma_process), ord='fro')**2 / (proc.n**2)
 
 
-def find_steady_state_kalman_parameters(proc):
+def find_steady_state_kalman_parameters(proc, Sigma0=None):
     """Calculate the steady-state Kalman filter parameters.
 
     Parameters
     ----------
     proc : HMProcess
         The hidden Markov process of interest
+    Sigma0 : np.ndarray, shape (n, n)
+        An initial guess for Sigma_infty (default np.eye(n))
 
     Returns
     -------
@@ -67,7 +69,13 @@ def find_steady_state_kalman_parameters(proc):
     sklearn.exceptions.ConvergenceWarning
         If the Riccati equation solver does not converge.
     """
-    res = scipy.optimize.minimize(riccati_error, np.eye(proc.n).flatten(), args=(proc,))
+    if Sigma0 is None:
+        Sigma0 = np.eye(proc.n)
+    try:
+        assert Sigma0.shape == (proc.n, proc.n)
+    except:
+        raise ValueError('Argument not of the correct shape')
+    res = scipy.optimize.minimize(riccati_error, Sigma0.flatten(), args=(proc,))
     if not res.success:
         raise sklearn.exceptions.ConvergenceWarning
     Sigma_infty = np.reshape(res.x, (proc.n, proc.n))
@@ -93,8 +101,12 @@ class SteadyStateKalmanFilter:
 
     Methods
     -------
+    precompute_parameters()
+        Compute Kalman filter parameters.
     infer(ys)
         Infer hidden Markov latent states using a steady-state Kalman filter.
+    check_convergence()
+        Compare steady-state parameters to actual Kalman filter parameters.
     """
     
     def __init__(self, proc):
@@ -110,39 +122,17 @@ class SteadyStateKalmanFilter:
             If the Riccati equation solver does not converge.
         """
         self.process = proc
-        self.Sigma_infty, self.K_infty, self.M_infty = find_steady_state_kalman_parameters(proc)
-    
-    def infer(self, ys):
-        """Infer hidden Markov latent states using a steady-state Kalman filter.
-    
-        Arguments
-        ---------
-        ys : np.ndarray, shape (num_steps, m)
-            The observations
-    
-        Returns
-        -------
-        xhats : np.ndarray, shape (num_steps, n)
-            The inferred latent states
-        """
-        nn = NeuralNet(self.M_infty, self.K_infty, np.eye(self.process.n), self.process.x0)
-        _, xhats = nn.forward(ys)
-        return xhats
+        Sigmas, _, _ = self.precompute_parameters()
+        self.Sigma_infty, self.K_infty, self.M_infty = find_steady_state_kalman_parameters(proc, Sigmas[-1])
 
-    def check_convergence(self):
-        """Compare steady-state parameters to actual Kalman filter parameters.
+    def precompute_parameters(self):
+        """Compute Kalman filter parameters.
 
         See https://en.wikipedia.org/wiki/Kalman_filter#Asymptotic_form for
         the equations governing the time evolution of the Kalman filter.
-        
+
         Returns
         -------
-        Sigma_infty_dist : np.ndarray, shape (num_steps,)
-            Frobenius distance between Sigma_i and Sigma_infty at each time step
-        K_infty_dist : np.ndarray, shape (num_steps,)
-            Frobenius distance between K_i and K_infty at each time step
-        M_infty_dist : np.ndarray, shape (num_steps,)
-            Frobenius distance between M_i and M_infty at each time step
         Sigmas : np.ndarray, shape (num_steps, n, n)
             The values of Sigma_i for each i
         Ks : np.ndarray, shape (num_steps, n, m)
@@ -166,6 +156,49 @@ class SteadyStateKalmanFilter:
             Ks[i] = Sigmas[i] @ self.process.O.T @ np.linalg.inv(S_i)
             Sigmas_post[i] = Sigmas[i] - Ks[i] @ self.process.O @ Sigmas[i]
             Ms[i] = self.process.A - Ks[i] @ self.process.O @ self.process.A
+        return Sigmas, Ks, Ms
+    
+    def infer(self, ys):
+        """Infer hidden Markov latent states using a steady-state Kalman filter.
+    
+        Arguments
+        ---------
+        ys : np.ndarray, shape (num_steps, m)
+            The observations
+    
+        Returns
+        -------
+        xhats : np.ndarray, shape (num_steps, n)
+            The inferred latent states
+        """
+        nn = NeuralNet(self.M_infty, self.K_infty, np.eye(self.process.n), self.process.x0)
+        _, xhats = nn.forward(ys)
+        return xhats
+
+    def check_convergence(self):
+        """Compare steady-state parameters to actual Kalman filter parameters.
+        
+        Returns
+        -------
+        Sigma_infty_dist : np.ndarray, shape (num_steps,)
+            Frobenius distance between Sigma_i and Sigma_infty at each time step
+        K_infty_dist : np.ndarray, shape (num_steps,)
+            Frobenius distance between K_i and K_infty at each time step
+        M_infty_dist : np.ndarray, shape (num_steps,)
+            Frobenius distance between M_i and M_infty at each time step
+        Sigmas : np.ndarray, shape (num_steps, n, n)
+            The values of Sigma_i for each i
+        Ks : np.ndarray, shape (num_steps, n, m)
+            The values of K_i for each i
+        Ms : np.ndarray, shape (num_steps, n, n)
+            The values of M_i for each i
+
+        Raises
+        ------
+        LinAlgError
+            If inversion of the innovation covariance matrix fails.
+        """
+        Sigmas, Ks, Ms = self.precompute_parameters()
         
         Sigma_infty_dist = np.zeros(self.process.num_steps)
         K_infty_dist = np.zeros(self.process.num_steps)
