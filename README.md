@@ -17,10 +17,13 @@ Written by Eric Tao, last updated 2024-06-17
     * [Exploration 2](#exploration-2)
         * [One-dimensional loss landscape](#one-dimensional-loss-landscape)
     * [Week 1 future directions](#week-1-future-directions)
+* [Week 2 summary](#week-2-summary)
+    * [Exploration 3](#exploration-3)
+    * [Week 2 future directions](#week-2-future-directions)
 
 ## <a name="introduction"></a>Introduction
 
-This is the repository I have made for the code I have written as part of the Summer 2024 uPNC (Undergraduate Program in Neural Computation) at CMU (Carnegie Mellon University). The aim of this project is to investigate the functional basis of why neurons are connected in the patterns that they are. For example, [previous work](https://bmcbiol.biomedcentral.com/articles/10.1186/1741-7007-2-25) by Reigl et al., 2004 has found that certain types of network motifs such as bi-directionally connected pairs of neurons and transitive triangles of neurons are overrepresented inside a *C. elegans* brain. How does the presence of these motifs in a neural network change its ability to perform various tasks? What tasks do networks with these motifs excel at? What tasks do networks with these motifs fail at? The answers to these questions would yield insight into the evolutionary goals of the brain and bridge the gap between network connectivity and functionality, analogous to Marr's implementational and computational levels.
+This is the repository I have made for the code I have written as part of the Summer 2024 uPNC (Undergraduate Program in Neural Computation) at CMU (Carnegie Mellon University). The aim of this project is to investigate the functional basis of why neurons are connected in the patterns that they are. For example, [previous work](https://bmcbiol.biomedcentral.com/articles/10.1186/1741-7007-2-25) by Reigl et al., 2004 has found that certain types of network motifs such as bi-directionally connected pairs of neurons and transitive triangles of neurons are overrepresented inside a *C. elegans* brain. How does the presence of these motifs in a neural network change its ability to perform various tasks? What tasks do networks with these motifs excel at? What tasks do networks with these motifs fail at? The answers to these questions would yield insight into the evolutionary goals of the brain and bridge the gap between network connectivity and functionality, analogous to Marr’s implementational and computational levels.
 
 The main notebook file for my exploration is `LDS_exploration.ipynb`, which depends on the `.py` files in the parent directory. For posterity, I have also included some old unused code in the `old` folder which uses PyTorch. I have since decided to code the system from scratch for a better understanding of the internals and more flexibility.
 
@@ -84,7 +87,7 @@ I first simulated a 3-dimensional linear hidden Markov process with Gaussian pro
 
 ![Hidden Markov process](img/week1/hm_process.png)
 
-The dark blue line represents the actual latent state while the orange dots represent the observations collected. One analogy that helps me conceptualize the task is to imagine a cat chasing a bird. The bird's position in 3-dimensional space is represented by the dark blue lines, with the first dimension representing its $x$ position, the second dimension representing its $y$ position, and the third dimension representing its $z$ position. The bird generally follows a linear dynamical equation, with its current position being a matrix $A$ multiplied by its previous position (in this case, that results in exponential decay in each of the dimensions), but it also wiggles around randomly, depending on the amount of process noise. As the bird flies around, the cat watches it and tracks its position, but its observations (the orange dots) are imperfect, and they always slightly differ from the actual position of the bird (the dark blue line). What is the cat's best strategy for using the orange dots to reconstruct the actual dark blue line and thereby accurately track the bird's position and catch it?
+The dark blue line represents the actual latent state while the orange dots represent the observations collected. One analogy that helps me conceptualize the task is to imagine a cat chasing a bird. The bird’s position in 3-dimensional space is represented by the dark blue lines, with the first dimension representing its $x$ position, the second dimension representing its $y$ position, and the third dimension representing its $z$ position. The bird generally follows a linear dynamical equation, with its current position being a matrix $A$ multiplied by its previous position (in this case, that results in exponential decay in each of the dimensions), but it also wiggles around randomly, depending on the amount of process noise. As the bird flies around, the cat watches it and tracks its position, but its observations (the orange dots) are imperfect, and they always slightly differ from the actual position of the bird (the dark blue line). What is the cat’s best strategy for using the orange dots to reconstruct the actual dark blue line and thereby accurately track the bird’s position and catch it?
 
 [Back to top](#top)
 
@@ -94,11 +97,11 @@ This task has a known optimal solution called the Kalman filter. I implemented a
 
 ![Kalman filter](img/week1/kalman_filter.png)
 
-The dark blue line is the actual bird's position and the light blue line is the Kalman filter's guess for the actual bird's position. As you can see, it performs remarkably well! I can quantify how well the Kalman filter performs on this task by calculating the sum-of-squares distance between the dark blue line and the light blue line. Letting $x_t$ be the value of the dark blue line at time $t$, $\hat x_t$ be the value of the light blue line at time $t$, and $T$ be the time that I stopped the simulation (in this example, $T=100$), then I can quantify this as
+The dark blue line is the actual bird’s position and the light blue line is the Kalman filter’s guess for the actual bird’s position. As you can see, it performs remarkably well! I can quantify how well the Kalman filter performs on this task by calculating the sum-of-squares distance between the dark blue line and the light blue line. Letting $x_t$ be the value of the dark blue line at time $t$, $\hat x_t$ be the value of the light blue line at time $t$, and $T$ be the time that I stopped the simulation (in this example, $T=100$), then I can quantify this as
 $$\sum_{t=0}^T (x_t-\hat x_t)^2.$$
-I'll make two changes to this formula. First, to make some calculations easier later, I'll multiply it by a coefficient of $1/2$. This does not really change anything qualitatively. Next, because I am using a steady-state version of the Kalman filter, the Kalman filter parameters will take some time to converge to their theoretical steady-state values. Therefore, instead of starting the sum at $t=0$, I'll start it at some other time $s$. This gives the formula for the "loss" or "error" of the Kalman filter's estimate for this process:
+I’ll make two changes to this formula. First, to make some calculations easier later, I’ll multiply it by a coefficient of $1/2$. This does not really change anything qualitatively. Next, because I am using a steady-state version of the Kalman filter, the Kalman filter parameters will take some time to converge to their theoretical steady-state values. Therefore, instead of starting the sum at $t=0$, I’ll start it at some other time $s$. This gives the formula for the “loss” (or “error”) of the Kalman filter’s estimate for this process:
 $$L = \frac12\sum_{t=s}^T (x_t-\hat x_t)^2.$$
-Then, we'd like to minimize the expected value of $L$, as averaged over our process and observation noises.
+Then, we’d like to minimize the expected value of $L$, as averaged over our process and observation noises.
 
 How do we know what value of $s$ to pick? To answer this question, I plotted how long it takes for the Kalman filter parameters to converge to their steady-state values. The results are shown below, with the $y$-axis representing the Frobenius distance between the actual Kalman filter parameters and their steady-state values:
 
@@ -114,7 +117,7 @@ The plot shows that $\Sigma$ converges to a value which is extremely different f
 
 #### <a name="recurrent-neural-network"></a>Recurrent neural network
 
-Now that the task is well-established and the optimal solution is known, it is an interesting question to ask if we can train a linear fully-connected recurrent neural network to accomplish the same task. The network will be governed by the equations $r_t = Mr_{t-1} + Ky_t$ and $\hat x_t = Wr_t$, where $r_t$ is a vector representing the states of all of the neurons (perhaps the firing rates), $M$ is a connectivity matrix ($M_{ij}$ represents the amount that the state of neuron $j$ at time $t-1$ affects the state of neuron $i$ at time $t$), $K$ is the input gain matrix ($K_{ij}$ represents the amount that dimension $j$ of $y_t$ affects the state of neuron $i$ at time $t$), and $W$ is a readout matrix which transforms the state of the neural network at time $t$ into a prediction for what the value of $x_t$ is. To simplify matters, I'll assume that the number of neurons is equal to the number of dimensions of our latent state, and I'll take $W$ to be the identity matrix. Therefore, $\hat x_t = M\hat x_{t-1} + Ky_t$. This is exactly the form of the steady-state Kalman filter, which is why I chose to look at the steady-state form in [the Kalman filter section](#kalman-filter).
+Now that the task is well-established and the optimal solution is known, it is an interesting question to ask if we can train a linear fully-connected recurrent neural network to accomplish the same task. The network will be governed by the equations $r_t = Mr_{t-1} + Ky_t$ and $\hat x_t = Wr_t$, where $r_t$ is a vector representing the states of all of the neurons (perhaps the firing rates), $M$ is a connectivity matrix ($M_{ij}$ represents the amount that the state of neuron $j$ at time $t-1$ affects the state of neuron $i$ at time $t$), $K$ is the input gain matrix ($K_{ij}$ represents the amount that dimension $j$ of $y_t$ affects the state of neuron $i$ at time $t$), and $W$ is a readout matrix which transforms the state of the neural network at time $t$ into a prediction for what the value of $x_t$ is. To simplify matters, I’ll assume that the number of neurons is equal to the number of dimensions of our latent state, and I’ll take $W$ to be the identity matrix. Therefore, $\hat x_t = M\hat x_{t-1} + Ky_t$. This is exactly the form of the steady-state Kalman filter, which is why I chose to look at the steady-state form in [the Kalman filter section](#kalman-filter).
 
 Instead of making $A$ a simple diagonal matrix, I set it to be equal to a random matrix with the same eigenvalues as before. Then, I programmed a linear recurrent neural network class which allows for making predictions using given values of $M$ and $K$, testing loss for the current values of $M$ and $K$, and learning $M$ and $K$ through gradient descent. Before thinking about learning, it may be interesting to briefly visualize what the loss landscape looks like. To this end, I simulated the expected loss for neural networks which had the optimal value for $K$ but a value of $M$ which was a linear combination of a random matrix and $M_{\mathrm{opt}}$, the optimal value for $M$. I chose three different random matrices for the purpose of this simulation, so when I plot the expected loss against the Frobenius distance between the chosen value for $M$ and $M_{\mathrm{opt}}$, I expect a pattern of three increasing lines, as moving $M$ farther away from $M_{\mathrm{opt}}$ should make the neural network perform worse. I indeed get this effect:
 
@@ -122,7 +125,7 @@ Instead of making $A$ a simple diagonal matrix, I set it to be equal to a random
 
 This graph however muddles two different effects: the loss may be getting worse because I am choosing a value of $M$ which is farther away from the optimal value, or it may be getting worse because our value for $K$ is becoming less and less suited for $M$ as I move $M$ farther away from $M_{\mathrm{opt}}$. A better procedure would be to calculate, for each value of $M$, the best value of $K$ for that value of $M$, and then plot the associated loss. One may think of the purpose of $K$ as scaling the input observations so that the estimator variance matches the input variance and our estimator is unbiased. Once this gain is appropriately calibrated, the variance of the posterior mean should match the variance of the process. Thus, all of the dynamics of interest is controlled by $M$. I will explore this theme more both in a later section where I simulated the loss landscape for a 1D process and in future weeks.
 
-Next, let's see how learnable the task is. I initialized a neural network with random values of $M$ and $K$ (to be more detailed, each entry was randomly chosen from a Gaussian distribution with mean zero and standard deviation $0.1$, where $0.1$ was chosen so that the states of the neural network would not blow up) and set the initial state of the neurons to be $(100,100,100)^T$, matching the initial state of the hidden Markov process. Before training, the neural network performs very poorly:
+Next, let’s see how learnable the task is. I initialized a neural network with random values of $M$ and $K$ (to be more detailed, each entry was randomly chosen from a Gaussian distribution with mean zero and standard deviation $0.1$, where $0.1$ was chosen so that the states of the neural network would not blow up) and set the initial state of the neurons to be $(100,100,100)^T$, matching the initial state of the hidden Markov process. Before training, the neural network performs very poorly:
 
 ![RNN before training](img/week1/rnn_before_training.png)
 
@@ -134,7 +137,7 @@ We can also plot how the loss of the neural network changes over time during tra
 
 ![RNN loss](img/week1/rnn_loss.png)
 
-As expected, the curve is decreasing and concave up. One could further improve the performance of the neural network over time by adjusting the learning rate as time passes. Finally, we can compare the neural network's performance to that of a Kalman filter:
+As expected, the curve is decreasing and concave up. One could further improve the performance of the neural network over time by adjusting the learning rate as time passes. Finally, we can compare the neural network’s performance to that of a Kalman filter:
 
 ![Kalman filter](img/week1/rnn_kalman_filter.png)
 
@@ -175,5 +178,45 @@ Looking towards the future, I could then compose the small networks together to 
 Ultimately, I would like to tie this project as best as possible towards realistic cognitive tasks. A neural network with a connectivity matrix with some structure A will most likely be best at inferring from a process whose dynamics are also governed by a matrix with that same structure A. Will it also perform well on processes whose dynamics are governed by a matrix with some other structure B, possibly due to the presence of nonlinearities? How do structure A and structure B correspond to behavioral goals which may be naturally selected for?
 
 It is also important to keep in mind that the network size matters. Many studies take the limit as $n\to\infty$, but there may be effects which are special to networks of medium size, say $n=300$. Are there emergent effects which appear only at certain scales? I will eventually want to start considering nonlinearities in the dynamics, and they may have a large impact on this.
+
+[Back to top](#top)
+
+## <a name="week-2-summary"></a>Week 2 Summary
+
+### <a name="exploration-3"></a>Exploration 3
+
+I essentially just tackled the three bullet points I listed in the [Week 1 future directions](#week-1-future-directions) section this week. The Kalman filter estimate covariance matrix was not converging properly because I was accidentally comparing the *a posteriori* estimate covariance matrices to the steady-state *a priori* estimate covariance matrix. Plotting the distance between the a priori estimate covariance matrices and the steady-state matrix instead works properly, as you can see below with the fixed graph:
+
+![Kalman filter prediction covariance matrix converging](img/week2/kalman_convergence_fixed.png)
+
+Within around 4 time steps, all of the parameters become within 5% of their calculated steady-state values. What happens if we change the dynamics of the hidden Markov process? Does the amount of time required to reach convergence to within 5% change? (Henceforth, I’ll use the term “buy-in period” to refer to the time period after which the parameters remain within a 5% error.)
+
+First, I looked at a hidden Markov process where the latent state was 1-dimensional, so the dynamics were controlled by a single scalar, $A$. I predicted that the length of the buy-in period should be proportional to the time constant of the process, $-1/\ln A$. However, the pattern instead turned out roughly linear, being bounded above by the line $y=11x+2$ (shown in green):
+
+![Length of buy-in period vs magnitude of $A$](img/week2/buy_in_period_1d.png)
+
+One might wonder if the pattern changes for negative values of $A$, but the graph remains entirely symmetrical about $A=0$. Therefore, a good choice for the length of the buy-in period would be $\lceil 11A+2\rceil$.
+
+The above plot is for a process noise standard deviation of $10$ and an observation noise standard deviation of $25$. Does changing these noise parameters change the required length of the buy-in period? A heatmap for $A=0.99$ and different magnitudes of noise is shown below.
+
+![Length of buy-in period vs process and observation noise standard deviations](img/week2/buy_in_period_noise_1d.png)
+
+The red line is governed by the equation $y=x/2$. It seems that when the process noise is above half the observation noise, the length of the buy-in period is less than or equal to the length predicted by the previous graph, which is the point $(25,10)$ on this heatmap. Below this line, the length of the buy-in period starts increasing, so it would probably be best to avoid that region in future experimentation so that we can be sure the steady-state Kalman filter is indeed near optimal.
+
+How can we extend this result to multidimensional processes? I tried graphing a plot of the largest eigenvalue of a three-dimensional process and the length of the buy-in period, and it seems that it looks fairly identical to the one-dimensional plot:
+
+![Length of buy-in period vs largest eigenvalue of $A$](img/week2/buy_in_period_3d.png)
+
+Therefore, I can have a reasonable amount of confidence that the same results about the buy-in period will extend to higher-dimensional processes.
+
+I also fixed a bug where the code that numerically solves for the steady-state Kalman filter parameters would sometimes output a faulty covariance matrix, with negative eigenvalues, causing the Kalman filter’s predictions to unexpectedly blow up. I fixed this by choosing a smarter value for the initial guess of the steady-state estimate covariance matrix, and it now works fine.
+
+I was not able to figure out a systematic way to determing the appropriate value of the gain matrix $K$ given the connectivity matrix $M$. I am not sure how to approach that problem.
+
+[Back to top](#top)
+
+### <a name="week-2-future-directions"></a>Week 2 Future Directions
+
+My future directions remain largely unchanged from my [Week 1 future directions](#week-1-future-directions). I am going to take a break from attempting to determine the optimal value for $K$ given $M$ and focus on testing out how different connectivity structures perform under gradient descent next week.
 
 [Back to top](#top)
