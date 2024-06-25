@@ -1,36 +1,20 @@
 import numpy as np
 
 
-def calc_loss(xhats, xs, start_from=0):
-    """Calculate the loss between the two input arrays.
+def highest_eig(M):
+    """Find the magnitude of the largest eigenvalue of a matrix.
 
-    More precisely, the loss is defined to be half of the
-    sum-of-squares distance between the two arrays.
-
-    Arguments
-    ---------
-    xhats : np.ndarray, any shape
-        The first input array
-    xs : np.ndarray, same shape as xhats
-        The second input array
-    start_from : int
-        The time index to start calculating loss from (default 0)
+    Parameters
+    ----------
+    M : np.ndarray, shape (n, n)
+        A square matrix
 
     Returns
     -------
-    loss : float
-        Half the sum-of-squares distance
-
-    Raises
-    ------
-    ValueError
-        If the two input arrays are not the same shape.
+    lam : float
+        The magnitude of the largest eigenvalue (in magnitude)
     """
-    try:
-        assert xhats.shape == xs.shape
-    except AssertionError:
-        raise ValueError('Shape mismatch')
-    return np.sum((xhats[start_from:]-xs[start_from:])**2)/2
+    return np.max(np.abs(np.linalg.eig(M).eigenvalues))
 
 
 def mk_rand_matrix(rng, n):

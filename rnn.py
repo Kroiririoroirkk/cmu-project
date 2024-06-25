@@ -2,7 +2,6 @@ import numpy as np
 import tqdm
 
 from hm_process import HMProcess
-from utils import calc_loss
 
 
 class NeuralNet:
@@ -37,15 +36,13 @@ class NeuralNet:
         Infer a latent signal from the observations given.
     batch_test(self, batch_size, proc)
         Test the network on simulated data.
-    backward(ys, xs, start_from)
+    backward(ys, xs, proc)
         Calculate the loss and gradient from one labeled example.
-    train_batch(eta, num_trials, proc, start_from, print_loss,
-            progress_bar)
+    train_batch(eta, num_trials, proc, print_loss, progress_bar)
         Train the network on simulated data.
-    train(etas, num_trials_per, proc, start_from, print_loss,
-            progress_bar)
+    train(etas, num_trials_per, proc, print_loss, progress_bar)
         Apply `train_batch` several times.
-    train_until_converge(eta, epsilon, num_trials_per, proc, start_from,
+    train_until_converge(eta, epsilon, num_trials_per, proc,
             print_loss, progress_bar)
         Apply `train_batch` until the losses differ by less than `epsilon`.
     """
@@ -114,7 +111,7 @@ class NeuralNet:
 
         return rs, xhats
 
-    def batch_test(self, batch_size, proc, start_from=0):
+    def batch_test(self, batch_size, proc):
         """Test the network on simulated data.
 
         Parameters
@@ -123,8 +120,6 @@ class NeuralNet:
             The number of trials to simulate
         proc : HMProcess
             The hidden Markov process to simulate
-        start_from : int
-            The time index to start calculating loss from (default 0)
 
         Returns
         -------
@@ -140,10 +135,10 @@ class NeuralNet:
         for i in range(batch_size):
             _, xs, ys = proc.simulate()
             _, xhats = self.forward(ys)
-            losses[i] = calc_loss(xhats, xs, start_from)
+            losses[i] = proc.calc_loss(xhats, xs)
         return losses
 
-    def backward(self, ys, xs, start_from=0):
+    def backward(self, ys, xs, proc):
         """Calculate the loss and gradient from one labeled example.
 
         Parameters
@@ -152,8 +147,8 @@ class NeuralNet:
             The array of observations
         xs : np.ndarray, shape (num_steps, latent_dim)
             The true latent signal
-        start_from : int
-            The time index to start calculating loss from (default 0)
+        proc : HMProcess
+            The hidden Markov process the example came from
 
         Returns
         -------
@@ -193,20 +188,20 @@ class NeuralNet:
 
         # dL_dr[n,k] represents dL / dr^n_k where L = 1/2 sum_{im} (xhat^m_i - x^m_i)^2
         dL_dr = np.zeros((num_steps, self.num_neurons))
-        for n in range(start_from, num_steps):
+        for n in range(proc.start_from, num_steps):
             for k in range(self.num_neurons):
                 dL_dr[n,k] = sum((self.W[i,k]*rs[n,k]-xs[n,i])*self.W[i,k] for i in range(self.latent_dim)) + sum(sum(sum(
                     (self.W[i,j]*rs[m,j]-xs[m,i])*self.W[i,j]*dr_dr[m,n,j,k]
                     for i in range(self.latent_dim))
                     for j in range(self.num_neurons))
                     for m in range(n+1,num_steps))
-        for n in range(start_from):
+        for n in range(proc.start_from):
             for k in range(self.num_neurons):
                 dL_dr[n,k] = sum(sum(sum(
                     (self.W[i,j]*rs[m,j]-xs[m,i])*self.W[i,j]*dr_dr[m,n,j,k]
                     for i in range(self.latent_dim))
                     for j in range(self.num_neurons))
-                    for m in range(start_from,num_steps))
+                    for m in range(proc.start_from,num_steps))
 
         kron_delta = np.eye(self.num_neurons)
 
@@ -244,10 +239,10 @@ class NeuralNet:
         #    for j in range(self.obs_dim):
         #        dL_dK[i,j] = sum(sum(dL_dr[n,k]*dr_dK[n,k,i,j] for n in range(num_steps)) for k in range(self.num_neurons))
 
-        L = calc_loss(xhats, xs)
+        L = proc.calc_loss(xhats, xs)
         return L, dL_dM, dL_dK
 
-    def train_batch(self, eta, num_trials, proc, start_from=0, print_loss=True, progress_bar=True):
+    def train_batch(self, eta, num_trials, proc, print_loss=True, progress_bar=True):
         """Train the network on simulated data.
 
         Parameters
@@ -258,8 +253,6 @@ class NeuralNet:
             The number of trials to simulate
         proc : HMProcess
             The hidden Markov process to simulate
-        start_from : int
-            The time index to start calculating loss from (default 0)
         print_loss : bool
             Whether to print the mean loss (default True)
         progress_bar : bool
@@ -290,7 +283,7 @@ class NeuralNet:
             r = tqdm.tqdm(r)
         for i in r:
             _, xs, ys = proc.simulate()
-            L, dL_dM, dL_dK = self.backward(ys, xs, start_from)
+            L, dL_dM, dL_dK = self.backward(ys, xs, proc)
             losses[i] = L
             dL_dMs[i] = dL_dM
             dL_dKs[i] = dL_dK
@@ -305,7 +298,7 @@ class NeuralNet:
 
         return losses, dL_dMs, dL_dKs
 
-    def train(self, etas, num_trials_per, proc, start_from=0, print_loss=True, progress_bar=True):
+    def train(self, etas, num_trials_per, proc, print_loss=True, progress_bar=True):
         """Apply `train_batch` several times.
 
         Parameters
@@ -316,8 +309,6 @@ class NeuralNet:
             The number of trials to simulate for each batch
         proc : HMProcess
             The hidden Markov process to simulate
-        start_from : int
-            The time index to start calculating loss from (default 0)
         print_loss : bool
             Whether to print the mean loss (default True)
         progress_bar : bool
@@ -336,11 +327,11 @@ class NeuralNet:
         num_batches = etas.shape[0]
         losses = np.zeros(num_batches)
         for i in range(num_batches):
-            Ls, _, _ = self.train_batch(etas[i], num_trials_per, proc, start_from, print_loss, progress_bar)
+            Ls, _, _ = self.train_batch(etas[i], num_trials_per, proc, print_loss, progress_bar)
             losses[i] = np.mean(Ls)
         return losses
 
-    def train_until_converge(self, eta, epsilon, num_trials_per, proc, start_from=0, print_loss=True, progress_bar=True):
+    def train_until_converge(self, eta, epsilon, num_trials_per, proc, print_loss=True, progress_bar=True):
         """Apply `train_batch` until the losses differ by less than `epsilon`.
 
         Parameters
@@ -353,8 +344,6 @@ class NeuralNet:
             The number of trials to simulate for each batch
         proc : HMProcess
             The hidden Markov process to simulate
-        start_from : int
-            The time index to start calculating loss from (default 0)
         print_loss : bool
             Whether to print the mean loss (default True)
         progress_bar : bool
@@ -381,7 +370,7 @@ class NeuralNet:
         mean_losses = []
         
         def iter_loop():
-            Ls, _, _ = self.train_batch(eta, num_trials_per, proc, start_from, print_loss, progress_bar)
+            Ls, _, _ = self.train_batch(eta, num_trials_per, proc, print_loss, progress_bar)
             Ms.append(np.copy(self.M))
             Ks.append(np.copy(self.K))
             mean_losses.append(np.mean(Ls))
