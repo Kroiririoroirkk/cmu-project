@@ -1,7 +1,8 @@
+import math
 import matplotlib.pyplot as plt
 import numpy as np
 
-import util
+import utils
 
 
 class HMProcess:
@@ -113,12 +114,12 @@ class HMProcess:
             in standard deviation.
         """
         try:
-            sigma_process = util.highest_eig(self.Sigma_process)
-            sigma_obs = util.highest_eig(self.Sigma_obs)
+            sigma_process = utils.highest_eig(self.Sigma_process)
+            sigma_obs = utils.highest_eig(self.Sigma_obs)
             assert sigma_obs <= 4 * sigma_process
         except AssertionError:
             raise ValueError('Observation noise is over twice the process noise')
-        return np.ceil(util.highest_eig(self.A)*11+2) # Rule of thumb from Exploration 3
+        return math.ceil(utils.highest_eig(self.A)*11+2) # Rule of thumb from Exploration 3
     
     def simulate(self):
         """Simulate a hidden Markov process governed by linear dynamics.
