@@ -167,6 +167,8 @@ class NeuralNet:
         ------
         ValueError
             If a NumPy array argument is not of the correct shape.
+        OverflowError
+            If the loss blows up.
         """
         num_steps = ys.shape[0]
         try:
@@ -175,72 +177,73 @@ class NeuralNet:
             raise ValueError('Argument not of the correct shape')
         rs, xhats = self.forward(ys)
 
-        # dr_dr[m,n,k,l] represents dr^m_k / dr^n_l for m > n and otherwise 0
-        dr_dr = np.zeros((num_steps, num_steps, self.num_neurons, self.num_neurons))
-        for m in range(num_steps-1, -1, -1):
-            for k in range(self.num_neurons):
-                for l in range(self.num_neurons):
-                    dr_dr[m,m-1,k,l] = self.M[k,l]
-            for n in range(m-2, -1, -1):
+        with np.errstate(over='raise'):
+            # dr_dr[m,n,k,l] represents dr^m_k / dr^n_l for m > n and otherwise 0
+            dr_dr = np.zeros((num_steps, num_steps, self.num_neurons, self.num_neurons))
+            for m in range(num_steps-1, -1, -1):
                 for k in range(self.num_neurons):
                     for l in range(self.num_neurons):
-                        dr_dr[m,n,k,l] = sum(dr_dr[m,n+1,k,i]*self.M[i,l] for i in range(self.num_neurons))
-
-        # dL_dr[n,k] represents dL / dr^n_k where L = 1/2 sum_{im} (xhat^m_i - x^m_i)^2
-        dL_dr = np.zeros((num_steps, self.num_neurons))
-        for n in range(proc.start_from, num_steps):
-            for k in range(self.num_neurons):
-                dL_dr[n,k] = sum((self.W[i,k]*rs[n,k]-xs[n,i])*self.W[i,k] for i in range(self.latent_dim)) + sum(sum(sum(
-                    (self.W[i,j]*rs[m,j]-xs[m,i])*self.W[i,j]*dr_dr[m,n,j,k]
-                    for i in range(self.latent_dim))
-                    for j in range(self.num_neurons))
-                    for m in range(n+1,num_steps))
-        for n in range(proc.start_from):
-            for k in range(self.num_neurons):
-                dL_dr[n,k] = sum(sum(sum(
-                    (self.W[i,j]*rs[m,j]-xs[m,i])*self.W[i,j]*dr_dr[m,n,j,k]
-                    for i in range(self.latent_dim))
-                    for j in range(self.num_neurons))
-                    for m in range(proc.start_from,num_steps))
-
-        kron_delta = np.eye(self.num_neurons)
-
-        # dr_dM[n,k,i,l] represents dr^n_k / dM_il
-        rs_shift = np.roll(rs, 1, 0)
-        rs_shift[0,:] = 0
-        dr_dM = np.einsum('jk,il', kron_delta, rs_shift, optimize='greedy')
-        #dr_dM = np.zeros((num_steps, self.num_neurons, self.num_neurons, self.num_neurons))
-        #for n in range(1,num_steps):
-        #    for k in range(self.num_neurons):
-        #        for i in range(self.num_neurons):
-        #            for l in range(self.num_neurons):
-        #                dr_dM[n,k,i,l] = rs[n-1,l] if i==k else 0
-
-        # dr_dK[n,k,i,l] represents dr^n_k / dK_il
-        dr_dK = np.einsum('jk,il', kron_delta, ys, optimize='greedy')
-        #dr_dK = np.zeros((num_steps, self.num_neurons, self.num_neurons, self.obs_dim))
-        #for n in range(num_steps):
-        #    for k in range(self.num_neurons):
-        #        for i in range(self.num_neurons):
-        #            for l in range(self.obs_dim):
-        #                dr_dK[n,k,i,l] = ys[n,l] if i==k else 0
-
-        # dL_dM[i,j] represents dL / dM_ij
-        dL_dM = np.einsum('ij,ijkl', dL_dr, dr_dM, optimize='greedy')
-        #dL_dM = np.zeros((self.num_neurons, self.num_neurons))
-        #for i in range(self.num_neurons):
-        #    for j in range(self.num_neurons):
-        #        dL_dM[i,j] = sum(sum(dL_dr[n,k]*dr_dM[n,k,i,j] for n in range(num_steps)) for k in range(self.num_neurons))
-
-        # dL_dK[i,j] represents dL / dK_ij
-        dL_dK = np.einsum('ij,ijkl', dL_dr, dr_dK, optimize='greedy')
-        #dL_dK = np.zeros((self.num_neurons, self.obs_dim))
-        #for i in range(self.num_neurons):
-        #    for j in range(self.obs_dim):
-        #        dL_dK[i,j] = sum(sum(dL_dr[n,k]*dr_dK[n,k,i,j] for n in range(num_steps)) for k in range(self.num_neurons))
-
-        L = proc.calc_loss(xhats, xs)
-        return L, dL_dM, dL_dK
+                        dr_dr[m,m-1,k,l] = self.M[k,l]
+                for n in range(m-2, -1, -1):
+                    for k in range(self.num_neurons):
+                        for l in range(self.num_neurons):
+                            dr_dr[m,n,k,l] = sum(dr_dr[m,n+1,k,i]*self.M[i,l] for i in range(self.num_neurons))
+    
+            # dL_dr[n,k] represents dL / dr^n_k where L = 1/2 sum_{im} (xhat^m_i - x^m_i)^2
+            dL_dr = np.zeros((num_steps, self.num_neurons))
+            for n in range(proc.start_from, num_steps):
+                for k in range(self.num_neurons):
+                    dL_dr[n,k] = sum((self.W[i,k]*rs[n,k]-xs[n,i])*self.W[i,k] for i in range(self.latent_dim)) + sum(sum(sum(
+                        (self.W[i,j]*rs[m,j]-xs[m,i])*self.W[i,j]*dr_dr[m,n,j,k]
+                        for i in range(self.latent_dim))
+                        for j in range(self.num_neurons))
+                        for m in range(n+1,num_steps))
+            for n in range(proc.start_from):
+                for k in range(self.num_neurons):
+                    dL_dr[n,k] = sum(sum(sum(
+                        (self.W[i,j]*rs[m,j]-xs[m,i])*self.W[i,j]*dr_dr[m,n,j,k]
+                        for i in range(self.latent_dim))
+                        for j in range(self.num_neurons))
+                        for m in range(proc.start_from,num_steps))
+    
+            kron_delta = np.eye(self.num_neurons)
+    
+            # dr_dM[n,k,i,l] represents dr^n_k / dM_il
+            rs_shift = np.roll(rs, 1, 0)
+            rs_shift[0,:] = 0
+            dr_dM = np.einsum('jk,il', kron_delta, rs_shift, optimize='greedy')
+            #dr_dM = np.zeros((num_steps, self.num_neurons, self.num_neurons, self.num_neurons))
+            #for n in range(1,num_steps):
+            #    for k in range(self.num_neurons):
+            #        for i in range(self.num_neurons):
+            #            for l in range(self.num_neurons):
+            #                dr_dM[n,k,i,l] = rs[n-1,l] if i==k else 0
+    
+            # dr_dK[n,k,i,l] represents dr^n_k / dK_il
+            dr_dK = np.einsum('jk,il', kron_delta, ys, optimize='greedy')
+            #dr_dK = np.zeros((num_steps, self.num_neurons, self.num_neurons, self.obs_dim))
+            #for n in range(num_steps):
+            #    for k in range(self.num_neurons):
+            #        for i in range(self.num_neurons):
+            #            for l in range(self.obs_dim):
+            #                dr_dK[n,k,i,l] = ys[n,l] if i==k else 0
+    
+            # dL_dM[i,j] represents dL / dM_ij
+            dL_dM = np.einsum('ij,ijkl', dL_dr, dr_dM, optimize='greedy')
+            #dL_dM = np.zeros((self.num_neurons, self.num_neurons))
+            #for i in range(self.num_neurons):
+            #    for j in range(self.num_neurons):
+            #        dL_dM[i,j] = sum(sum(dL_dr[n,k]*dr_dM[n,k,i,j] for n in range(num_steps)) for k in range(self.num_neurons))
+    
+            # dL_dK[i,j] represents dL / dK_ij
+            dL_dK = np.einsum('ij,ijkl', dL_dr, dr_dK, optimize='greedy')
+            #dL_dK = np.zeros((self.num_neurons, self.obs_dim))
+            #for i in range(self.num_neurons):
+            #    for j in range(self.obs_dim):
+            #        dL_dK[i,j] = sum(sum(dL_dr[n,k]*dr_dK[n,k,i,j] for n in range(num_steps)) for k in range(self.num_neurons))
+    
+            L = proc.calc_loss(xhats, xs)
+            return L, dL_dM, dL_dK
 
     def train_batch(self, eta, num_trials, proc, print_loss=True, progress_bar=True):
         """Train the network on simulated data.
@@ -273,6 +276,8 @@ class NeuralNet:
         ------
         ValueError
             If a NumPy array argument is not of the correct shape.
+        OverflowError
+            If the loss blows up.
         """
         losses = np.zeros(num_trials)
         dL_dMs = np.zeros((num_trials, self.num_neurons, self.num_neurons))
@@ -290,8 +295,14 @@ class NeuralNet:
 
         dL_dM_mean = np.mean(dL_dMs, axis=0)
         dL_dK_mean = np.mean(dL_dKs, axis=0)
-        self.M -= eta * dL_dM_mean * self.mask
-        self.K -= eta * dL_dK_mean
+        dM = eta * dL_dM_mean * self.mask
+        dM[dM>0.1] = 0.1
+        dM[dM<-0.1] = -0.1
+        dK = eta * dL_dK_mean
+        dK[dK>0.1] = 0.1
+        dK[dK<-0.1] = -0.1
+        self.M -= dM
+        self.K -= dK
 
         if print_loss:
             print('Mean loss', np.mean(losses))
@@ -318,18 +329,30 @@ class NeuralNet:
         -------
         losses : np.ndarray, shape (num_batches,)
             The mean loss for each batch
+        Ms : np.ndarray, shape (num_batches+1, num_neurons, num_neurons)
+            The values of M achieved during training
+        Ks : np.ndarray, shape (num_batches+1, num_neurons, obs_dim)
+            The values of K achieved during training
 
         Raises
         ------
         ValueError
             If a NumPy array argument is not of the correct shape.
+        OverflowError
+            If the loss blows up.
         """
         num_batches = etas.shape[0]
+        Ms = np.zeros((num_batches+1, self.num_neurons, self.num_neurons))
+        Ms[0] = self.M
+        Ks = np.zeros((num_batches+1, self.num_neurons, self.obs_dim))
+        Ks[0] = self.K
         losses = np.zeros(num_batches)
         for i in range(num_batches):
             Ls, _, _ = self.train_batch(etas[i], num_trials_per, proc, print_loss, progress_bar)
+            Ms[i+1] = self.M
+            Ks[i+1] = self.K
             losses[i] = np.mean(Ls)
-        return losses
+        return losses, Ms, Ks
 
     def train_until_converge(self, eta, epsilon, num_trials_per, proc, print_loss=True, progress_bar=True):
         """Apply `train_batch` until the losses differ by less than `epsilon`.
@@ -364,6 +387,8 @@ class NeuralNet:
         ------
         ValueError
             If a NumPy array argument is not of the correct shape.
+        OverflowError
+            If the loss blows up.
         """
         Ms = [np.copy(self.M)]
         Ks = [np.copy(self.K)]

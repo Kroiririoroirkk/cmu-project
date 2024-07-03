@@ -20,6 +20,11 @@ Written by Eric Tao, last updated 2024-06-17
 * [Week 2 summary](#week-2-summary)
     * [Exploration 3](#exploration-3)
     * [Week 2 future directions](#week-2-future-directions)
+* [Week 3 summary](#week-3-summary)
+    * [Exploration 4](#exploration-4)
+        * [One Dimension, One Neuron](#one-dimension-one-neuron)
+        * [Two Dimensions, Two Neurons](#two-dimensions-two-neurons)
+        * [Three Dimensions, Three Neurons](#three-dimensions-three-neurons)
 
 ## <a name="introduction"></a>Introduction
 
@@ -218,5 +223,81 @@ I was not able to figure out a systematic way to determing the appropriate value
 ### <a name="week-2-future-directions"></a>Week 2 Future Directions
 
 My future directions remain largely unchanged from my [Week 1 future directions](#week-1-future-directions). I am going to take a break from attempting to determine the optimal value for $K$ given $M$ and focus on testing out how different connectivity structures perform under gradient descent next week.
+
+[Back to top](#top)
+
+## <a name="week-2-summary"></a>Week 2 Summary
+
+### <a name="exploration-4"></a>Exploration 4
+
+#### <a name="one-dimension-one-neuron"></a>One Dimension, One Neuron
+
+This week, I focused on examining what happens to the performance of the neural network when you restrict the support of the connectivity matrix, i.e. eliminate connections between certain neurons. First, I examined the impact of having self-loops in the network. I considered a simple one-dimensional process and a neural network of one neuron, either with a self-loop or without. Then, I let the network undergo gradient descent. As expected, the neuron with a self-loop performed much better at the filtering task than the neuron without a self-loop:
+
+![Self-loop neuron performs better than non-self-loop neuron](img/week3/one_neuron_configs.png)
+
+In the first attempt of the experiment, the two bars were actually the same height, but I expect it was because I did not put the training rate high enough and/or did not run the gradient descent procedure for enough iterations. After changing both the training rate and number of iterations, the differences are easy to see, for example by comparing these charts of the loss landscape from those in [the Week 2 findings](#one-dimensional-loss-landscape):
+
+<img src="img/week3/high_training_rate3.png" alt="Loss landscape for A=0.95" width="49%" /><img src="img/week3/high_training_rate2.png" alt="Loss landscape for A=0.8" width="49%" /><img src="img/week3/high_training_rate1.png" alt="Loss landscape for A=0" width="49%" />
+
+After fixing this issue, the two bars are consistently very different.
+
+[Back to top](#top)
+
+#### <a name="two-dimensions-two-neurons"></a>Two Dimensions, Two Neurons
+
+A very similar result held true for two-dimensional processes and two-neuron configurations:
+
+![Two-neuron neural network configurations](img/week3/two_neuron_configs.png)
+
+That is, the neural networks which had self-loops always performed better than the networks which had fewer self-loops, regardless of what other connections were present. For example, the network whose only connection is a self-loop on one neuron performs the same as the network which has one neuron with a self-loop and a bidirectional connection between the two neurons. Similarly, the network which consists of two neurons with two neurons with self-loops performs much better than the "Loop with bidirectional" network and performs at roughly the same loss as the network with a full number of connections. Another trial only comparing the configurations which have both self-loops in them shows the same trend:
+
+![Two-neuron neural network configurations with all self-loops](img/week3/two_neuron_configs_with_loops.png)
+
+The presence of other connections does not matter! This is surprising because bidirectional connections are overrepresented inside the brain, and I would have expected them to play a similar role as a self-loop but over a larger timescale, allowing for integration of more information over time. These results do make sense though because the matrix governing the process dynamics was mostly diagonal (due to the matrix having eigenvalues 0.8 and 0.9, which are fairly close together), so I would expect a diagonal support matrix (i.e. one only featuring self-loops) to do best and other connections to be irrelevant.
+
+My next idea was to test the same procedure again with a process dynamics matrix which is further away from a diagonal matrix, such as a rotation matrix or a matrix with two eigenvalues which are very far apart. The graph below shows a trial simulated using the process matrix
+
+$$A = \begin{pmatrix}1.032 & -0.076\\ 1.426 & -0.382\end{pmatrix}\quad\text{(eigenvalues $0.95, -0.3$)}$$
+
+which is significantly far from a diagonal matrix:
+
+![Two-neuron neural network configurations with all self-loops for matrix with far-apart eigenvalues](img/week3/two_neuron_configs_with_loops_far_eigenvalues.png)
+
+In this case, the difference between the three conditions is still very small, but the neural network with only two self-loops performs slightly worse than those with additional connections.
+
+Once I tried the process matrix
+
+$$A = \begin{pmatrix}0 & 0.95\\0.8 & 0\end{pmatrix},$$
+
+however, I found that the bidirectional setup performed clearly the best, which makes sense because $A$ is most similar to the adjacency matrix of a bidirectional connection:
+
+![Bidirectional two-neuron network](img/week3/two_neuron_bidirectional.png)
+
+Lastly, I tried a rotation-esque matrix
+$$A = \begin{pmatrix}0.6&0.8\\-0.8&0.6\end{pmatrix}.$$
+At first, the gradient descent process would blow up, but I solved this issue by implementing gradient clipping, limiting each parameter to move by 0.1 at most for each batch. The results were as follows:
+
+![Two-neuron rotation](img/week3/two_neuron_rotation.png)
+
+We again see the neural network with a bidirectional connection between the two neurons winning over the other configurations by a large margin.
+
+[Back to top](#top)
+
+#### <a name="three-dimensions-three-neurons"></a>Three Dimensions, Three Neurons
+
+For my experiments involving three neurons, I chose to examine only the configurations which involve every neuron having a self-loop. In addition to performing better, these configurations are more biologically plausible because the state of a neuron at one time point should affect its state at the next time point. Recalling my hypothesis that neural motifs are overrepresented in *C. elegans* because they are better for performing tasks which involve integrating information over time, the transitive triangle configuration should dramatically outperform all other options with six connections (three self-loops and three additional connections). However, after testing the neural networks on a simulated process with eigenvalues $0.6, 0.85, 0.95$, I find no clear evidence that that is the case. The transitive triangle does not seem to have especially less loss than the other configurations, such as the cycle:
+
+![Three-neuron neural network configurations with all self-loops](img/week3/three_neuron_configs_with_loops_all.png)
+
+Next, I tested a rotation matrix
+
+$$A = \begin{pmatrix}0.6 & 0.8 & 0\\-0.8 & 0.6 & 0\\0 & 0 & 0.9\end{pmatrix}$$
+
+and found that, as expected, the neural network configurations with a bidirectional connection between two neurons performed best:
+
+![Three-neuron neural network configurations, inferring rotation](img/week3/three_neuron_rotation.png)
+
+It is notable that the neural network configuration with a bidirectional connection has four fewer connections than the configuration with all possible connections, but still significantly outperforms it. This is likely due to the fact that even though the capabilities of a more limited network are a strict subset of the capabilities of a fully connected network, the search space for optimal solutions is smaller, so the network with fewer connections has an easier time learning the task than the network with all possible connections.
 
 [Back to top](#top)

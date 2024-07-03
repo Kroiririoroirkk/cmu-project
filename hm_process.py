@@ -135,10 +135,9 @@ class HMProcess:
         """
         xs = np.zeros((self.num_steps, self.n))
         ys = np.zeros((self.num_steps, self.m))
-        xs[0] = self.x0
-        for i in range(1, self.num_steps):
-            xs[i] = self.A@xs[i-1] + self.rng.multivariate_normal(np.zeros(self.n), self.Sigma_process)
+        xs[-1] = self.x0
         for i in range(self.num_steps):
+            xs[i] = self.A@xs[i-1] + self.rng.multivariate_normal(np.zeros(self.n), self.Sigma_process)
             ys[i] = self.O@xs[i] + self.rng.multivariate_normal(np.zeros(self.m), self.Sigma_obs)
         return np.arange(self.num_steps), xs, ys
 
