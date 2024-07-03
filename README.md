@@ -250,7 +250,7 @@ A very similar result held true for two-dimensional processes and two-neuron con
 
 ![Two-neuron neural network configurations](img/week3/two_neuron_configs.png)
 
-That is, the neural networks which had self-loops always performed better than the networks which had fewer self-loops, regardless of what other connections were present. For example, the network whose only connection is a self-loop on one neuron performs the same as the network which has one neuron with a self-loop and a bidirectional connection between the two neurons. Similarly, the network which consists of two neurons with two neurons with self-loops performs much better than the "Loop with bidirectional" network and performs at roughly the same loss as the network with a full number of connections. Another trial only comparing the configurations which have both self-loops in them shows the same trend:
+That is, the neural networks which had self-loops always performed better than the networks which had fewer self-loops, regardless of what other connections were present. For example, the network whose only connection is a self-loop on one neuron performs the same as the network which has one neuron with a self-loop and a bidirectional connection between the two neurons. Similarly, the network which consists of two neurons with two neurons with self-loops performs much better than the “Loop with bidirectional network” and performs at roughly the same loss as the network with a full number of connections. Another trial only comparing the configurations which have both self-loops in them shows the same trend:
 
 ![Two-neuron neural network configurations with all self-loops](img/week3/two_neuron_configs_with_loops.png)
 
@@ -258,7 +258,9 @@ The presence of other connections does not matter! This is surprising because bi
 
 My next idea was to test the same procedure again with a process dynamics matrix which is further away from a diagonal matrix, such as a rotation matrix or a matrix with two eigenvalues which are very far apart. The graph below shows a trial simulated using the process matrix
 
-$$A = \begin{pmatrix}1.032 & -0.076\\ 1.426 & -0.382\end{pmatrix}\quad\text{(eigenvalues $0.95, -0.3$)}$$
+```math
+A = \begin{pmatrix}1.032 & -0.076 \\ 1.426 & -0.382\end{pmatrix}\quad\text{(eigenvalues $0.95, -0.3$)}
+```
 
 which is significantly far from a diagonal matrix:
 
@@ -268,14 +270,20 @@ In this case, the difference between the three conditions is still very small, b
 
 Once I tried the process matrix
 
-$$A = \begin{pmatrix}0 & 0.95\\0.8 & 0\end{pmatrix},$$
+```math
+A = \begin{pmatrix}0 & 0.95\\0.8 & 0\end{pmatrix},
+```
 
 however, I found that the bidirectional setup performed clearly the best, which makes sense because $A$ is most similar to the adjacency matrix of a bidirectional connection:
 
 ![Bidirectional two-neuron network](img/week3/two_neuron_bidirectional.png)
 
 Lastly, I tried a rotation-esque matrix
-$$A = \begin{pmatrix}0.6&0.8\\-0.8&0.6\end{pmatrix}.$$
+
+```math
+A = \begin{pmatrix}0.6&0.8\\-0.8&0.6\end{pmatrix}.
+```
+
 At first, the gradient descent process would blow up, but I solved this issue by implementing gradient clipping, limiting each parameter to move by 0.1 at most for each batch. The results were as follows:
 
 ![Two-neuron rotation](img/week3/two_neuron_rotation.png)
@@ -292,7 +300,9 @@ For my experiments involving three neurons, I chose to examine only the configur
 
 Next, I tested a rotation matrix
 
-$$A = \begin{pmatrix}0.6 & 0.8 & 0\\-0.8 & 0.6 & 0\\0 & 0 & 0.9\end{pmatrix}$$
+```math
+A = \begin{pmatrix}0.6 & 0.8 & 0\\-0.8 & 0.6 & 0\\0 & 0 & 0.9\end{pmatrix}
+```
 
 and found that, as expected, the neural network configurations with a bidirectional connection between two neurons performed best:
 
