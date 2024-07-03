@@ -226,7 +226,7 @@ My future directions remain largely unchanged from my [Week 1 future directions]
 
 [Back to top](#top)
 
-## <a name="week-2-summary"></a>Week 2 Summary
+## <a name="week-3-summary"></a>Week 3 Summary
 
 ### <a name="exploration-4"></a>Exploration 4
 
