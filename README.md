@@ -20,11 +20,12 @@ Written by Eric Tao, last updated 2024-06-17
 * [Week 2 summary](#week-2-summary)
     * [Exploration 3](#exploration-3)
     * [Week 2 future directions](#week-2-future-directions)
-* [Week 3 summary](#week-3-summary)
+* [Weeks 3 and 4 summary](#weeks-3-and-4-summary)
     * [Exploration 4](#exploration-4)
-        * [One Dimension, One Neuron](#one-dimension-one-neuron)
-        * [Two Dimensions, Two Neurons](#two-dimensions-two-neurons)
-        * [Three Dimensions, Three Neurons](#three-dimensions-three-neurons)
+        * [One dimension, one neuron](#one-dimension-one-neuron)
+        * [Two dimensions, two neurons](#two-dimensions-two-neurons)
+        * [Three dimensions, three neurons](#three-dimensions-three-neurons)
+* [Addendum (gradient descent calculation)](#addendum)
 
 ## <a name="introduction"></a>Introduction
 
@@ -226,11 +227,11 @@ My future directions remain largely unchanged from my [Week 1 future directions]
 
 [Back to top](#top)
 
-## <a name="week-3-summary"></a>Week 3 Summary
+## <a name="weeks-3-and-4-summary"></a>Weeks 3 and 4 Summary
 
 ### <a name="exploration-4"></a>Exploration 4
 
-#### <a name="one-dimension-one-neuron"></a>One Dimension, One Neuron
+#### <a name="one-dimension-one-neuron"></a>One dimension, one neuron
 
 This week, I focused on examining what happens to the performance of the neural network when you restrict the support of the connectivity matrix, i.e. eliminate connections between certain neurons. First, I examined the impact of having self-loops in the network. I considered a simple one-dimensional process and a neural network of one neuron, either with a self-loop or without. Then, I let the network undergo gradient descent. As expected, the neuron with a self-loop performed much better at the filtering task than the neuron without a self-loop:
 
@@ -244,7 +245,7 @@ After fixing this issue, the two bars are consistently very different.
 
 [Back to top](#top)
 
-#### <a name="two-dimensions-two-neurons"></a>Two Dimensions, Two Neurons
+#### <a name="two-dimensions-two-neurons"></a>Two dimensions, two neurons
 
 A very similar result held true for two-dimensional processes and two-neuron configurations:
 
@@ -292,7 +293,7 @@ We again see the neural network with a bidirectional connection between the two 
 
 [Back to top](#top)
 
-#### <a name="three-dimensions-three-neurons"></a>Three Dimensions, Three Neurons
+#### <a name="three-dimensions-three-neurons"></a>Three dimensions, three neurons
 
 For my experiments involving three neurons, I chose to examine only the configurations which involve every neuron having a self-loop. In addition to performing better, these configurations are more biologically plausible because the state of a neuron at one time point should affect its state at the next time point. Recalling my hypothesis that neural motifs are overrepresented in *C. elegans* because they are better for performing tasks which involve integrating information over time, the transitive triangle configuration should dramatically outperform all other options with six connections (three self-loops and three additional connections). However, after testing the neural networks on a simulated process with eigenvalues $0.6, 0.85, 0.95$, I find no clear evidence that that is the case. The transitive triangle does not seem to have especially less loss than the other configurations, such as the cycle:
 
@@ -311,3 +312,70 @@ and found that, as expected, the neural network configurations with a bidirectio
 It is notable that the neural network configuration with a bidirectional connection has four fewer connections than the configuration with all possible connections, but still significantly outperforms it. This is likely due to the fact that even though the capabilities of a more limited network are a strict subset of the capabilities of a fully connected network, the search space for optimal solutions is smaller, so the network with fewer connections has an easier time learning the task than the network with all possible connections.
 
 [Back to top](#top)
+
+## <a name="addendum"></a>Addendum (gradient descent calculation)
+
+The relevant equations are given by:
+
+$$\hat x_i(r_i, W) = Wr_i,$$
+
+$$s_i(r_{i-1}, M, K) = Mr_{i-1} + Ky_i,$$
+
+$$r_i(r_{i-1}, M, K) = \phi(s_i(r_{i-1}, M, K)),$$
+
+$$L_1((\hat x_i)_{i=\mathrm{start}}^{N-1}) = \frac12\sum_{i=\mathrm{start}}^{N-1}\|\hat x_i - x_i\|_2^2,$$
+
+$$L_{2,N-1}((r_i)_{i=-1}^{N-1},M,K,W) = L_1((\hat x_i(r_i,W))_{i=\mathrm{start}}^{N-1}),$$
+
+$$L_{2,j}((r_i)_{i=-1}^j,M,K,W) = L_{2,j+1}((r_{-1},\dots,r_j,r_{j+1}(r_j, M, K)),M,K,W),$$
+
+$$L(r_{-1},M,K,W) = L_{2,0},$$
+
+where $\phi$ is some nonlinearity ($\phi(x) = x$ for a linear network) that applies coordinate-wise. Expanding the first four equations with indices, we obtain
+
+$$\hat x_{i,j}((r_{i,\cdot}),(W_{\cdot,\cdot})) = \sum_{k=0}^{\mathrm{numneurons}-1}W_{j,k}r_{i,k},$$
+
+$$s_{i,j}((r_{i-1,\cdot}),(M_{\cdot,\cdot}), (K_{\cdot,\cdot})) = \sum_{k=0}^{\mathrm{numneurons}-1}M_{j,k}r_{i-1,k} + \sum_{k=0}^{m-1}K_{j,k}y_{i,k},$$
+
+$$r_{i,j}((r_{i-1,\cdot}), (M_{\cdot,\cdot}), (K_{\cdot,\cdot})) = \phi(s_{i,j}((r_{i-1,\cdot}), (M_{\cdot,\cdot}), (K_{\cdot,\cdot}))),$$
+
+$$L_1((\hat x_{\cdot,\cdot})) = \frac12\sum_{i=\mathrm{start}}^{N-1}\sum_{j=0}^{n-1}(\hat x_{i,j} - x_{i,j})^2.$$
+
+Now, we can compute
+$$\frac{\partial L_1}{\partial \hat x_{i,j}} = \hat x_{i,j} - x_{i,j}$$
+whenever $i\ge\mathrm{start}$. Next,
+$$\frac{\partial \hat x_{i,j}}{\partial W_{k,\ell}} = \delta_{j,k}r_{i,\ell},$$
+and
+$$\frac{\partial \hat x_{i,j}}{\partial r_{k,\ell}} = \delta_{i,k}W_{j,\ell}.$$
+Therefore,
+$$\frac{\partial L_{2,N-1}}{\partial W_{k,\ell}} = \sum_{i=\mathrm{start}}^{N-1}\sum_{j=0}^{n-1}\frac{\partial L_1}{\partial\hat x_{i,j}}\frac{\partial\hat x_{i,j}}{\partial W_{k,\ell}} = \sum_{i=\mathrm{start}}^{N-1}(\hat x_{i,k}-x_{i,k})r_{i,\ell},$$
+and
+$$\frac{\partial L_{2,N-1}}{\partial r_{k,\ell}} = \sum_{i=\mathrm{start}}^{N-1}\sum_{j=0}^{n-1}\frac{\partial L_1}{\partial\hat x_{i,j}}\frac{\partial\hat x_{i,j}}{\partial r_{k,\ell}} = \sum_{j=0}^{n-1}(\hat x_{k,j} - x_{k,j})W_{j,\ell}.$$
+We can then conclude that
+$$\boxed{\frac{\partial L}{\partial W_{k,\ell}} = \sum_{i=\mathrm{start}}^{N-1}(\hat x_{i,k}-x_{i,k})r_{i,\ell}.}$$
+Next, taking derivatives of the formula for $s_i$, we obtain
+$$\frac{\partial s_{i,j}}{\partial r_{i-1,\ell}} = M_{j,\ell},$$
+$$\frac{\partial s_{i,j}}{\partial M_{k,\ell}} = \delta_{j,k}r_{i-1,\ell},$$
+$$\frac{\partial s_{i,j}}{\partial K_{k,\ell}} = \delta_{j,k}y_{i,\ell}.$$
+Thus,
+$$\frac{\partial r_{i,j}}{\partial r_{i-1,\ell}} = \phi'(s_{i,j})M_{j,\ell},$$
+$$\frac{\partial r_{i,j}}{\partial M_{k,\ell}} = \phi'(s_{i,j})\delta_{j,k}r_{i-1,\ell},$$
+$$\frac{\partial s_{i,j}}{\partial K_{k,\ell}} = \phi'(s_{i,j})\delta_{j,k}y_{i,\ell}.$$
+Next, we can calculate that
+$$\frac{\partial L_{2,N-1}}{\partial M_{k,\ell}} = \frac{\partial L_{2,N-1}}{\partial K_{k,\ell}} = 0,$$
+and when $j<N-1$,
+$$\frac{\partial L_{2,j}}{\partial r_{k,\ell}} = \begin{cases}\frac{\partial L_{2,j+1}}{\partial r_{k,\ell}}+\sum_{i=0}^{\mathrm{numneurons}-1}\frac{\partial L_{2,j+1}}{\partial r_{k+1,i}}\frac{\partial r_{k+1,i}}{r_{k,\ell}}&j=k,\\
+\frac{\partial L_{2,j+1}}{\partial r_{k,\ell}}&j>k,\end{cases}$$
+$$\frac{\partial L_{2,j}}{\partial M_{k,\ell}} = \frac{\partial L_{2,j+1}}{\partial M_{k,\ell}} + \sum_{i=0}^{\mathrm{numneurons-1}}\frac{\partial L_{2,j+1}}{\partial r_{j+1,i}}\frac{\partial r_{j+1,i}}{\partial M_{k,\ell}},$$
+$$\frac{\partial L_{2,j}}{\partial K_{k,\ell}} = \frac{\partial L_{2,j+1}}{\partial K_{k,\ell}} + \sum_{i=0}^{\mathrm{numneurons-1}}\frac{\partial L_{2,j+1}}{\partial r_{j+1,i}}\frac{\partial r_{j+1,i}}{\partial K_{k,\ell}}.$$
+Simplifying the last three lines, we get
+$$\frac{\partial L_{2,j}}{\partial r_{k,\ell}} = \begin{cases}\frac{\partial L_{2,j+1}}{\partial r_{k,\ell}}+\sum_{i=0}^{\mathrm{numneurons}-1}\frac{\partial L_{2,j+1}}{\partial r_{k+1,i}}\phi'(s_{k+1,i})M_{i,\ell}&j=k,\\
+\frac{\partial L_{2,j+1}}{\partial r_{k,\ell}}&j>k,\end{cases}$$
+$$\frac{\partial L_{2,j}}{\partial M_{k,\ell}} = \frac{\partial L_{2,j+1}}{\partial M_{k,\ell}} + \frac{\partial L_{2,j+1}}{\partial r_{j+1,k}}\phi'(s_{j+1,k})r_{j,\ell},$$
+$$\frac{\partial L_{2,j}}{\partial K_{k,\ell}} = \frac{\partial L_{2,j+1}}{\partial K_{k,\ell}} + \frac{\partial L_{2,j+1}}{\partial r_{j+1,k}}\phi'(s_{j+1,k})y_{j+1,\ell}.$$
+Therefore,
+$$\frac{\partial L_{2,j}}{\partial r_{j,k}} = \begin{cases}\sum_{\ell=0}^{n-1}(\hat x_{N-1,\ell} - x_{N-1,\ell})W_{\ell,k}&j=N-1,\\\sum_{\ell=0}^{n-1}(\hat x_{j,\ell} - x_{j,\ell})W_{\ell,k} + \sum_{i=0}^{\mathrm{numneurons}-1}\frac{\partial L_{2,j+1}}{\partial r_{j+1,i}}\phi'(s_{k+1,i})M_{i,\ell}&j<N-1,\end{cases}$$
+which is useful in the calculation of the formulae
+$$\boxed{\frac{\partial L}{\partial M_{k,\ell}} = \sum_{j=0}^{N-1}\frac{\partial L_{2,j}}{\partial r_{j,k}}\phi'(s_{j,k})r_{j-1,\ell}},$$
+and
+$$\boxed{\frac{\partial L}{\partial K_{k,\ell}} = \sum_{j=0}^{N-1}\frac{\partial L_{2,j}}{\partial r_{j,k}}\phi'(s_{j,k})y_{j,\ell}}.$$
