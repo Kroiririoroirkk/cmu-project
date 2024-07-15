@@ -315,7 +315,7 @@ It is notable that the neural network configuration with a bidirectional connect
 
 ## <a name="addendum"></a>Addendum (gradient descent calculation)
 
-For future reference (mainly for my own benefit), I put here the derivation of the formula for the gradient of the loss which is used in the gradient descent code that I wrote.
+For future reference (mainly for my own benefit), I put here the derivation of the formula for the gradient of the loss which is used in the gradient descent code that I wrote. GitHub mangles most of the LaTeX unfortunately due to a bad LaTeX implementation on their part.
 
 The relevant equations are given by:
 
@@ -325,11 +325,11 @@ $$s_i(r_{i-1}, M, K) = Mr_{i-1} + Ky_i,$$
 
 $$r_i(r_{i-1}, M, K) = \phi(s_i(r_{i-1}, M, K)),$$
 
-$$L_1((\hat x_i)_{i=\mathrm{start}}^{N-1}) = \frac12\sum_{i=\mathrm{start}}^{N-1}\|\hat x_i - x_i\|_2^2,$$
+$$L_1((\hat x_i)\_{i=\mathrm{start}}^{N-1}) = \frac12\sum_{i=\mathrm{start}}^{N-1}\|\hat x_i - x_i\|_2^2,$$
 
-$$L_{2,N-1}((r_i)_{i=-1}^{N-1},M,K,W) = L_1((\hat x_i(r_i,W))_{i=\mathrm{start}}^{N-1}),$$
+$$L_{2,N-1}((r_i)\_{i=-1}^{N-1},M,K,W) = L_1((\hat x_i(r_i,W))_{i=\mathrm{start}}^{N-1}),$$
 
-$$L_{2,j}((r_i)_{i=-1}^j,M,K,W) = L_{2,j+1}((r_{-1},\dots,r_j,r_{j+1}(r_j, M, K)),M,K,W),$$
+$$L_{2,j}((r_i)\_{i=-1}^j,M,K,W) = L_{2,j+1}((r_{-1},\dots,r_j,r_{j+1}(r_j, M, K)),M,K,W),$$
 
 $$L(r_{-1},M,K,W) = L_{2,-1},$$
 
@@ -344,40 +344,76 @@ $$r_{i,j}((r_{i-1,\cdot}), (M_{\cdot,\cdot}), (K_{\cdot,\cdot})) = \phi(s_{i,j}(
 $$L_1((\hat x_{\cdot,\cdot})) = \frac12\sum_{i=\mathrm{start}}^{N-1}\sum_{j=0}^{n-1}(\hat x_{i,j} - x_{i,j})^2.$$
 
 Now, we can compute
+
 $$\frac{\partial L_1}{\partial \hat x_{i,j}} = \hat x_{i,j} - x_{i,j}$$
+
 whenever $i\ge\mathrm{start}$. Next,
+
 $$\frac{\partial \hat x_{i,j}}{\partial W_{k,\ell}} = \delta_{j,k}r_{i,\ell},$$
+
 and
+
 $$\frac{\partial \hat x_{i,j}}{\partial r_{k,\ell}} = \delta_{i,k}W_{j,\ell}.$$
+
 Therefore,
-$$\frac{\partial L_{2,N-1}}{\partial W_{k,\ell}} = \sum_{i=\mathrm{start}}^{N-1}\sum_{j=0}^{n-1}\frac{\partial L_1}{\partial\hat x_{i,j}}\frac{\partial\hat x_{i,j}}{\partial W_{k,\ell}} = \sum_{i=\mathrm{start}}^{N-1}(\hat x_{i,k}-x_{i,k})r_{i,\ell},$$
+
+$$\frac{\partial L_{2,N-1}}{\partial W_{k,\ell}} = \sum_{i=\mathrm{start}}^{N-1}\sum_{j=0}^{n-1}\frac{\partial L_1}{\partial\hat x_{i,j}}\frac{\partial\hat x_{i,j}}{\partial W_{k,\ell}} = 
+\sum_{i=\mathrm{start}}^{N-1}(\hat x_{i,k}-x_{i,k})r_{i,\ell},$$
+
 and
+
 $$\frac{\partial L_{2,N-1}}{\partial r_{k,\ell}} = \sum_{i=\mathrm{start}}^{N-1}\sum_{j=0}^{n-1}\frac{\partial L_1}{\partial\hat x_{i,j}}\frac{\partial\hat x_{i,j}}{\partial r_{k,\ell}} = \sum_{j=0}^{n-1}(\hat x_{k,j} - x_{k,j})W_{j,\ell}.$$
+
 We can then conclude that
+
 $$\boxed{\frac{\partial L}{\partial W_{k,\ell}} = \sum_{i=\mathrm{start}}^{N-1}(\hat x_{i,k}-x_{i,k})r_{i,\ell}.}$$
+
 Next, taking derivatives of the formula for $s_i$, we obtain
+
 $$\frac{\partial s_{i,j}}{\partial r_{i-1,\ell}} = M_{j,\ell},$$
+
 $$\frac{\partial s_{i,j}}{\partial M_{k,\ell}} = \delta_{j,k}r_{i-1,\ell},$$
+
 $$\frac{\partial s_{i,j}}{\partial K_{k,\ell}} = \delta_{j,k}y_{i,\ell}.$$
+
 Thus,
+
 $$\frac{\partial r_{i,j}}{\partial r_{i-1,\ell}} = \phi'(s_{i,j})M_{j,\ell},$$
+
 $$\frac{\partial r_{i,j}}{\partial M_{k,\ell}} = \phi'(s_{i,j})\delta_{j,k}r_{i-1,\ell},$$
+
 $$\frac{\partial r_{i,j}}{\partial K_{k,\ell}} = \phi'(s_{i,j})\delta_{j,k}y_{i,\ell}.$$
+
 Next, we can calculate that
+
 $$\frac{\partial L_{2,N-1}}{\partial M_{k,\ell}} = \frac{\partial L_{2,N-1}}{\partial K_{k,\ell}} = 0,$$
-and when $j<N-1$,
+
+and when $j < N-1$,
+
 $$\frac{\partial L_{2,j}}{\partial r_{k,\ell}} = \begin{cases}\frac{\partial L_{2,j+1}}{\partial r_{k,\ell}}+\sum_{i=0}^{\mathrm{numneurons}-1}\frac{\partial L_{2,j+1}}{\partial r_{k+1,i}}\frac{\partial r_{k+1,i}}{r_{k,\ell}}&j=k,\\
 \frac{\partial L_{2,j+1}}{\partial r_{k,\ell}}&j>k,\end{cases}$$
+
 $$\frac{\partial L_{2,j}}{\partial M_{k,\ell}} = \frac{\partial L_{2,j+1}}{\partial M_{k,\ell}} + \sum_{i=0}^{\mathrm{numneurons-1}}\frac{\partial L_{2,j+1}}{\partial r_{j+1,i}}\frac{\partial r_{j+1,i}}{\partial M_{k,\ell}},$$
+
 $$\frac{\partial L_{2,j}}{\partial K_{k,\ell}} = \frac{\partial L_{2,j+1}}{\partial K_{k,\ell}} + \sum_{i=0}^{\mathrm{numneurons-1}}\frac{\partial L_{2,j+1}}{\partial r_{j+1,i}}\frac{\partial r_{j+1,i}}{\partial K_{k,\ell}}.$$
+
 Simplifying the last three lines, we get
+
 $$\frac{\partial L_{2,j}}{\partial r_{k,\ell}} = \begin{cases}\frac{\partial L_{2,j+1}}{\partial r_{k,\ell}}+\sum_{i=0}^{\mathrm{numneurons}-1}\frac{\partial L_{2,j+1}}{\partial r_{k+1,i}}\phi'(s_{k+1,i})M_{i,\ell}&j=k,\\
 \frac{\partial L_{2,j+1}}{\partial r_{k,\ell}}&j>k,\end{cases}$$
+
 $$\frac{\partial L_{2,j}}{\partial M_{k,\ell}} = \frac{\partial L_{2,j+1}}{\partial M_{k,\ell}} + \frac{\partial L_{2,j+1}}{\partial r_{j+1,k}}\phi'(s_{j+1,k})r_{j,\ell},$$
+
 $$\frac{\partial L_{2,j}}{\partial K_{k,\ell}} = \frac{\partial L_{2,j+1}}{\partial K_{k,\ell}} + \frac{\partial L_{2,j+1}}{\partial r_{j+1,k}}\phi'(s_{j+1,k})y_{j+1,\ell}.$$
+
 Therefore,
-$$\boxed{\frac{\partial L_{2,j}}{\partial r_{j,k}} = \begin{cases}\sum_{\ell=0}^{n-1}(\hat x_{N-1,\ell} - x_{N-1,\ell})W_{\ell,k}&j=N-1,\\\sum_{\ell=0}^{n-1}(\hat x_{j,\ell} - x_{j,\ell})W_{\ell,k} + \sum_{i=0}^{\mathrm{numneurons}-1}\frac{\partial L_{2,j+1}}{\partial r_{j+1,i}}\phi'(s_{j+1,i})M_{i,k}&j<N-1,\end{cases}\quad\ \,}$$
+
+$$\frac{\partial L_{2,j}}{\partial r_{j,k}} = \begin{cases} \sum_{\ell=0}^{n-1}(\hat x_{N-1,\ell} - x_{N-1,\ell})W_{\ell,k} & j = N-1, \\ \sum_{\ell=0}^{n-1}(\hat x_{j,\ell} - x_{j,\ell})W_{\ell,k} + \sum_{i=0}^{\mathrm{numneurons}-1}\frac{\partial L_{2,j+1}}{\partial r_{j+1,i}}\phi'(s_{j+1,i})M_{i,k} & j < N-1, \end{cases}$$
+
 which is useful in the calculation of the formulae
+
 $$\boxed{\frac{\partial L}{\partial M_{k,\ell}} = \sum_{j=0}^{N-1}\frac{\partial L_{2,j}}{\partial r_{j,k}}\phi'(s_{j,k})r_{j-1,\ell}},$$
+
 and
+
 $$\boxed{\frac{\partial L}{\partial K_{k,\ell}} = \sum_{j=0}^{N-1}\frac{\partial L_{2,j}}{\partial r_{j,k}}\phi'(s_{j,k})y_{j,\ell}}.$$
