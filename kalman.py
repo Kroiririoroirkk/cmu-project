@@ -172,7 +172,7 @@ class SteadyStateKalmanFilter:
             The inferred latent states
         """
         nn = NeuralNet(self.M_infty, self.K_infty, np.eye(self.process.n), self.process.x0)
-        _, xhats = nn.forward(ys)
+        _, _, xhats = nn.forward(ys)
         return xhats
 
     def check_convergence(self):

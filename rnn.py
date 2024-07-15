@@ -242,9 +242,9 @@ class NeuralNet:
                                  axes=([0],[0]))
             dL_dr = np.zeros((proc.num_steps, self.num_neurons))
             dL_dr[-1] = (xhats[-1]-xs[-1]) @ self.W
-            for i in range(-2,-proc.num_steps-1,-1):
-                dL_dr[i] = (xhats[i]-xs[-1]) @ self.W +
-                    (dL_dr[i+1]*self.nonlin.deriv(ss[i+1])) @ self.M
+            for i in range(-2,-1*proc.num_steps-1,-1):
+                dL_dr[i] = ((xhats[i]-xs[i]) @ self.W
+                    + (dL_dr[i+1]*self.nonlin.deriv(ss[i+1])) @ self.M)
             dL_dr_phi = dL_dr * self.nonlin.deriv(ss)
             dL_dM = np.tensordot(dL_dr_phi, rs_shift, axes=([0],[0]))
             dL_dK = np.tensordot(dL_dr_phi, ys, axes=([0],[0]))
@@ -292,6 +292,7 @@ class NeuralNet:
         losses = np.zeros(num_trials)
         dL_dMs = np.zeros((num_trials, self.num_neurons, self.num_neurons))
         dL_dKs = np.zeros((num_trials, self.num_neurons, self.obs_dim))
+        dL_dWs = np.zeros((num_trials, self.latent_dim, self.num_neurons))
 
         r = range(num_trials)
         if progress_bar:
@@ -368,11 +369,11 @@ class NeuralNet:
         Ws[0] = self.W
         losses = np.zeros(num_batches)
         for i in range(num_batches):
-            Ls, _, _ = self.train_batch(etas[i], num_trials_per, proc, print_loss, progress_bar)
+            Ls, _, _, _ = self.train_batch(etas[i], num_trials_per, proc, print_loss, progress_bar)
+            losses[i] = np.mean(Ls)
             Ms[i+1] = self.M
             Ks[i+1] = self.K
             Ws[i+1] = self.W
-            losses[i] = np.mean(Ls)
         return losses, Ms, Ks, Ws
 
     def train_until_converge(self, eta, epsilon, num_trials_per, proc, print_loss=True, progress_bar=True):
@@ -419,7 +420,7 @@ class NeuralNet:
         mean_losses = []
         
         def iter_loop():
-            Ls, _, _ = self.train_batch(eta, num_trials_per, proc, print_loss, progress_bar)
+            Ls, _, _, _ = self.train_batch(eta, num_trials_per, proc, print_loss, progress_bar)
             Ms.append(np.copy(self.M))
             Ks.append(np.copy(self.K))
             Ws.append(np.copy(self.W))
