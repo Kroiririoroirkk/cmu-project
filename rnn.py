@@ -24,7 +24,8 @@ class Nonlinearity(Enum):
         work on NumPy arrays)
     """
     ID = (lambda x: x), (lambda x: 0*x+1)
-    TANH = (lambda x: (1+np.tanh(x))/2), (lambda x: 1/(2 * np.cosh(x)**2))
+    TANH = (lambda x: 50*(1+np.tanh(x))), (lambda x: 50/(np.cosh(x)**2))
+    RELU = (lambda x: (x>0)*x), (lambda x: (x>0)*1)
 
     def __init__(self, fn, deriv):
         """
@@ -301,6 +302,8 @@ class NeuralNet:
             _, xs, ys = proc.simulate()
             L, dL_dM, dL_dK, dL_dW = self.backward(ys, xs, proc)
             losses[i] = L
+            if L > 1e10:
+                raise OverflowError
             dL_dMs[i] = dL_dM
             dL_dKs[i] = dL_dK
             dL_dWs[i] = dL_dW
@@ -368,8 +371,11 @@ class NeuralNet:
         Ws = np.zeros((num_batches+1, self.latent_dim, self.num_neurons))
         Ws[0] = self.W
         losses = np.zeros(num_batches)
-        for i in range(num_batches):
-            Ls, _, _, _ = self.train_batch(etas[i], num_trials_per, proc, print_loss, progress_bar)
+        r = range(num_batches)
+        if progress_bar:
+            r = tqdm.tqdm(r)
+        for i in r:
+            Ls, _, _, _ = self.train_batch(etas[i], num_trials_per, proc, print_loss, progress_bar=False)
             losses[i] = np.mean(Ls)
             Ms[i+1] = self.M
             Ks[i+1] = self.K
